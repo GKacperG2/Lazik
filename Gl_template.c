@@ -1,118 +1,84 @@
 // Gl_template.c
-//Wy³šczanie b³êdów przed "fopen"
 #define  _CRT_SECURE_NO_WARNINGS
 #define M_PI 3.141592653589793238462643
 
-
-
-// £adowanie bibliotek:
-
-#ifdef _MSC_VER                         // Check if MS Visual C compiler
-#  pragma comment(lib, "opengl32.lib")  // Compiler-specific directive to avoid manually configuration
-#  pragma comment(lib, "glu32.lib")     // Link libraries
+#ifdef _MSC_VER
+#  pragma comment(lib, "opengl32.lib")  
+#  pragma comment(lib, "glu32.lib")     
 #endif
 
-//xDDDDDDDDDDDDDDDDDDDDDDDDDddd
-
-
-// Ustalanie trybu tekstowego:
-#ifdef _MSC_VER        // Check if MS Visual C compiler
-#   ifndef _MBCS
-#      define _MBCS    // Uses Multi-byte character set
-#   endif
-#   ifdef _UNICODE     // Not using Unicode character set
-#      undef _UNICODE 
-#   endif
-#   ifdef UNICODE
-#      undef UNICODE 
-#   endif
-#endif
-#include <windows.h>            // Window defines
-#include <gl\gl.h>              // OpenGL
-#include <gl\glu.h>             // GLU library
-#include <math.h>				// Define for sqrt
+#include <windows.h>            
+#include <gl\gl.h>              
+#include <gl\glu.h>             
+#include <math.h>				
 #include <stdio.h>
-#include "resource.h"           // About box resource identifiers.
+#include "resource.h"           
 
 #define glRGB(x, y, z)	glColor3ub((GLubyte)x, (GLubyte)y, (GLubyte)z)
-#define BITMAP_ID 0x4D42		// identyfikator formatu BMP
+#define BITMAP_ID 0x4D42		
 #define GL_PI 3.14
 
-// Color Palette handle
 HPALETTE hPalette = NULL;
 
-// Application name and instance storeage
 static LPCTSTR lpszAppName = "GL Template";
 static HINSTANCE hInstance;
 
-// Rotation amounts
-static GLfloat xRot = 0.0f;
-static GLfloat yRot = 0.0f;
+static GLfloat eyeX = 0.0f, eyeY = 5.0f, eyeZ = 30.0f;
+static GLfloat centerX = 0.0f, centerY = 0.0f, centerZ = 0.0f;
+static GLfloat upX = 0.0f, upY = 1.0f, upZ = 0.0f;
+static float speed = 0.5f;
 
-static GLfloat xs = 0.0f;
-static GLfloat ys = 0.0f;
+static float tractorAcceleration = 0.0f;
+static float maxSpeed = 1.0f;   // maksymalna prêdkoœæ w przód
+static float friction = 0.01f;  // tarcie
+static float turnSpeed = 2.0f;
 
-static GLfloat eyeX = 0.0f, eyeY = 0.0f, eyeZ = 5.0f; // Pozycja kamery (z dala od œrodka sceny)
-static GLfloat centerX = 0.0f, centerY = 0.0f, centerZ = 0.0f; // Punkt, na który patrzy kamera
-static GLfloat upX = 0.0f, upY = 1.0f, upZ = 0.0f; // Wektor "do góry"
-float speed = 1.0f;
+
+static float yaw = -90.0f;
+static float pitch = 0.0f;
+static float sensitivity = 2.0f;
 
 static GLsizei lastHeight;
 static GLsizei lastWidth;
 
-// Opis tekstury
-BITMAPINFOHEADER	bitmapInfoHeader;	// nag³ówek obrazu
-unsigned char*		bitmapData;			// dane tekstury
-unsigned int		texture[2];			// obiekt tekstury
+BITMAPINFOHEADER	bitmapInfoHeader;
+unsigned char* bitmapData;
+unsigned int		texture[2];
 
+// Zmienne dla traktora
+static float tractorX = 0.0f;
+static float tractorZ = 0.0f;
+static float tractorY = 0.0f;
+static float tractorYaw = 0.0f;
+static float tractorPitch = 0.0f;
+static float tractorRoll = 0.0f;
+static float tractorSpeedForward = 0.0f;
 
-// Declaration for Window procedure
-LRESULT CALLBACK WndProc(   HWND    hWnd,
-							UINT    message,
-							WPARAM  wParam,
-							LPARAM  lParam);
-
-// Dialog procedure for about box
-BOOL APIENTRY AboutDlgProc (HWND hDlg, UINT message, UINT wParam, LONG lParam);
-
-// Set Pixel Format function - forward declaration
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+BOOL APIENTRY AboutDlgProc(HWND hDlg, UINT message, UINT wParam, LONG lParam);
 void SetDCPixelFormat(HDC hDC);
 
-
-
-// Reduces a normal vector specified as a set of three coordinates,
-// to a unit normal vector of length one.
+// Funkcje pomocnicze
 void ReduceToUnit(float vector[3])
-	{
+{
 	float length;
-	
-	// Calculate the length of the vector		
-	length = (float)sqrt((vector[0]*vector[0]) + 
-						(vector[1]*vector[1]) +
-						(vector[2]*vector[2]));
-
-	// Keep the program from blowing up by providing an exceptable
-	// value for vectors that may calculated too close to zero.
-	if(length == 0.0f)
+	length = (float)sqrt((vector[0] * vector[0]) +
+		(vector[1] * vector[1]) +
+		(vector[2] * vector[2]));
+	if (length == 0.0f)
 		length = 1.0f;
-
-	// Dividing each element by the length will result in a
-	// unit normal vector.
 	vector[0] /= length;
 	vector[1] /= length;
 	vector[2] /= length;
-	}
+}
 
-
-// Points p1, p2, & p3 specified in counter clock-wise order
 void calcNormal(float v[3][3], float out[3])
-	{
-	float v1[3],v2[3];
+{
+	float v1[3], v2[3];
 	static const int x = 0;
 	static const int y = 1;
 	static const int z = 2;
 
-	// Calculate two vectors from the three points
 	v1[x] = v[0][x] - v[1][x];
 	v1[y] = v[0][y] - v[1][y];
 	v1[z] = v[0][z] - v[1][z];
@@ -121,222 +87,77 @@ void calcNormal(float v[3][3], float out[3])
 	v2[y] = v[1][y] - v[2][y];
 	v2[z] = v[1][z] - v[2][z];
 
-	// Take the cross product of the two vectors to get
-	// the normal vector which will be stored in out
-	out[x] = v1[y]*v2[z] - v1[z]*v2[y];
-	out[y] = v1[z]*v2[x] - v1[x]*v2[z];
-	out[z] = v1[x]*v2[y] - v1[y]*v2[x];
+	out[x] = v1[y] * v2[z] - v1[z] * v2[y];
+	out[y] = v1[z] * v2[x] - v1[x] * v2[z];
+	out[z] = v1[x] * v2[y] - v1[y] * v2[x];
 
-	// Normalize the vector (shorten length to one)
 	ReduceToUnit(out);
-	}
+}
 
+void updateCameraDirection() {
+	float frontX = cosf(yaw * M_PI / 180.0f) * cosf(pitch * M_PI / 180.0f);
+	float frontY = sinf(pitch * M_PI / 180.0f);
+	float frontZ = sinf(yaw * M_PI / 180.0f) * cosf(pitch * M_PI / 180.0f);
 
+	centerX = eyeX + frontX;
+	centerY = eyeY + frontY;
+	centerZ = eyeZ + frontZ;
+}
 
-// Change viewing volume and viewport.  Called when window is resized
 void ChangeSize(GLsizei w, GLsizei h)
-	{
-	GLfloat nRange = 100.0f;
+{
 	GLfloat fAspect;
-	// Prevent a divide by zero
-	if(h == 0)
+	if (h == 0)
 		h = 1;
 
 	lastWidth = w;
 	lastHeight = h;
-		
-	fAspect=(GLfloat)w/(GLfloat)h;
-	// Set Viewport to window dimensions
-    glViewport(0, 0, w, h);
 
-	// Reset coordinate system
+	fAspect = (GLfloat)w / (GLfloat)h;
+
+	glViewport(0, 0, w, h);
+
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-
-	// Establish clipping volume (left, right, bottom, top, near, far)
-    if (w <= h) 
-		glOrtho (-nRange, nRange, -nRange*h/w, nRange*h/w, -nRange, nRange);
-    else 
-		glOrtho (-nRange*w/h, nRange*w/h, -nRange, nRange, -nRange, nRange);
-
-	// Establish perspective: 
-	/*
-	gluPerspective(60.0f,fAspect,1.0,400);
-	*/
+	gluPerspective(60.0f, fAspect, 1.0, 400.0);
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	}
+}
 
-
-
-// This function does any needed initialization on the rendering
-// context.  Here it sets up and initializes the lighting for
-// the scene.
 void SetupRC()
-	{
-	// Light values and coordinates
-	//GLfloat  ambientLight[] = { 0.3f, 0.3f, 0.3f, 1.0f };
-	//GLfloat  diffuseLight[] = { 0.7f, 0.7f, 0.7f, 1.0f };
-	//GLfloat  specular[] = { 1.0f, 1.0f, 1.0f, 1.0f};
-	//GLfloat	 lightPos[] = { 0.0f, 150.0f, 150.0f, 1.0f };
-	//GLfloat  specref[] =  { 1.0f, 1.0f, 1.0f, 1.0f };
-
-
-	glEnable(GL_DEPTH_TEST);	// Hidden surface removal
-	glFrontFace(GL_CCW);		// Counter clock-wise polygons face out
-	//glEnable(GL_CULL_FACE);		// Do not calculate inside of jet
-
-	// Enable lighting
-	//glEnable(GL_LIGHTING);
-
-	// Setup and enable light 0
-	//glLightfv(GL_LIGHT0,GL_AMBIENT,ambientLight);
-	//glLightfv(GL_LIGHT0,GL_DIFFUSE,diffuseLight);
-	//glLightfv(GL_LIGHT0,GL_SPECULAR,specular);
-	//glLightfv(GL_LIGHT0,GL_POSITION,lightPos);
-	//glEnable(GL_LIGHT0);
-
-	// Enable color tracking
-	//glEnable(GL_COLOR_MATERIAL);
-	
-	// Set Material properties to follow glColor values
-	//glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
-
-	// All materials hereafter have full specular reflectivity
-	// with a high shine
-	//glMaterialfv(GL_FRONT, GL_SPECULAR,specref);
-	//glMateriali(GL_FRONT,GL_SHININESS,128);
-
-
-	// White background
-	glClearColor(1.0f, 1.0f, 1.0f, 1.0f );
-	// Black brush
-	glColor3f(0.0,0.0,0.0);
-	}
-
-void skrzynka(void)
 {
-	glColor3d(0.8,0.7,0.3);
-	
-	
-	glEnable(GL_TEXTURE_2D); // W³¹cz teksturowanie
+	glEnable(GL_DEPTH_TEST);
+	glFrontFace(GL_CCW);
 
-	glBindTexture(GL_TEXTURE_2D,texture[0]);
-	glBegin(GL_QUADS);
-		glNormal3d(0,0,1);
-		glTexCoord2d(1.0,1.0); glVertex3d(25,25,25);
-		glTexCoord2d(0.0,1.0); glVertex3d(-25,25,25);
-		glTexCoord2d(0.0,0.0); glVertex3d(-25,-25,25);
-		glTexCoord2d(1.0,0.0); glVertex3d(25,-25,25);
-	glEnd();
-	glBindTexture(GL_TEXTURE_2D,texture[1]);
-	glBegin(GL_QUADS);
-		glNormal3d(1,0,0);
-		glTexCoord2d(1.0,1.0); glVertex3d(25,25,25);
-		glTexCoord2d(0.0,1.0); glVertex3d(25,-25,25);
-		glTexCoord2d(0.0,0.0); glVertex3d(25,-25,-25);
-		glTexCoord2d(1.0,0.0); glVertex3d(25,25,-25);
-	glEnd();
-
-	glDisable(GL_TEXTURE_2D); // Wy³¹cz teksturowanie
-
-
-
-	glBegin(GL_QUADS);
-		glNormal3d(0,0,-1);
-		glVertex3d(25,25,-25);
-		glVertex3d(25,-25,-25);
-		glVertex3d(-25,-25,-25);
-		glVertex3d(-25,25,-25);
-
-		glNormal3d(-1,0,0);
-		glVertex3d(-25,25,-25);
-		glVertex3d(-25,-25,-25);
-		glVertex3d(-25,-25,25);
-		glVertex3d(-25,25,25);
-
-		glNormal3d(0,1,0);
-		glVertex3d(25,25,25);
-		glVertex3d(25,25,-25);
-		glVertex3d(-25,25,-25);
-		glVertex3d(-25,25,25);
-
-		glNormal3d(0,-1,0);
-		glVertex3d(25,-25,25);
-		glVertex3d(-25,-25,25);
-		glVertex3d(-25,-25,-25);
-		glVertex3d(25,-25,-25);
-	glEnd();
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glColor3f(0.0, 0.0, 0.0);
 }
 
-void walec01(void)
+unsigned char* LoadBitmapFile(char* filename, BITMAPINFOHEADER* bitmapInfoHeader)
 {
-GLUquadricObj*obj;
-obj=gluNewQuadric();
-gluQuadricNormals(obj,GLU_SMOOTH);
-glColor3d(1,0,0);
-glPushMatrix();
-gluCylinder(obj,20,20,30,15,7);
-gluCylinder(obj,0,20,0,15,7);
-glTranslated(0,0,60);
-glRotated(180.0,0,1,0);
-gluCylinder(obj,0,20,30,15,7);
-glPopMatrix();
-}
+	FILE* filePtr;
+	BITMAPFILEHEADER	bitmapFileHeader;
+	unsigned char* bitmapImage;
+	int					imageIdx = 0;
+	unsigned char		tempRGB;
 
-void kula(void)
-{	GLUquadricObj*obj;
-	obj=gluNewQuadric();
-	gluQuadricTexture(obj,GL_TRUE);
-	glBindTexture(GL_TEXTURE_2D,texture[0]);
-	glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE);
-	glColor3d(1.0,0.8,0.8);
-	glEnable(GL_TEXTURE_2D);
-	gluSphere(obj,40,15,7);
-	glDisable(GL_TEXTURE_2D);
-}
-
-
-
-
-// LoadBitmapFile
-// opis: ³aduje mapê bitow¹ z pliku i zwraca jej adres.
-//       Wype³nia strukturê nag³ówka.
-//	 Nie obs³uguje map 8-bitowych.
-unsigned char *LoadBitmapFile(char *filename, BITMAPINFOHEADER *bitmapInfoHeader)
-{
-	FILE *filePtr;							// wskaŸnik pozycji pliku
-	BITMAPFILEHEADER	bitmapFileHeader;		// nag³ówek pliku
-	unsigned char		*bitmapImage;			// dane obrazu
-	int					imageIdx = 0;		// licznik pikseli
-	unsigned char		tempRGB;				// zmienna zamiany sk³adowych
-
-	// otwiera plik w trybie "read binary"
 	filePtr = fopen(filename, "rb");
 	if (filePtr == NULL)
 		return NULL;
 
-	// wczytuje nag³ówek pliku
 	fread(&bitmapFileHeader, sizeof(BITMAPFILEHEADER), 1, filePtr);
-	
-	// sprawdza, czy jest to plik formatu BMP
+
 	if (bitmapFileHeader.bfType != BITMAP_ID)
 	{
 		fclose(filePtr);
 		return NULL;
 	}
 
-	// wczytuje nag³ówek obrazu
 	fread(bitmapInfoHeader, sizeof(BITMAPINFOHEADER), 1, filePtr);
-
-	// ustawia wskaŸnik pozycji pliku na pocz¹tku danych obrazu
 	fseek(filePtr, bitmapFileHeader.bfOffBits, SEEK_SET);
 
-	// przydziela pamiêæ buforowi obrazu
 	bitmapImage = (unsigned char*)malloc(bitmapInfoHeader->biSizeImage);
-
-	// sprawdza, czy uda³o siê przydzieliæ pamiêæ
 	if (!bitmapImage)
 	{
 		free(bitmapImage);
@@ -344,309 +165,55 @@ unsigned char *LoadBitmapFile(char *filename, BITMAPINFOHEADER *bitmapInfoHeader
 		return NULL;
 	}
 
-	// wczytuje dane obrazu
 	fread(bitmapImage, 1, bitmapInfoHeader->biSizeImage, filePtr);
-
-	// sprawdza, czy dane zosta³y wczytane
 	if (bitmapImage == NULL)
 	{
 		fclose(filePtr);
 		return NULL;
 	}
 
-	// zamienia miejscami sk³adowe R i B 
-	for (imageIdx = 0; imageIdx < bitmapInfoHeader->biSizeImage; imageIdx+=3)
+	for (imageIdx = 0; imageIdx < bitmapInfoHeader->biSizeImage; imageIdx += 3)
 	{
 		tempRGB = bitmapImage[imageIdx];
 		bitmapImage[imageIdx] = bitmapImage[imageIdx + 2];
 		bitmapImage[imageIdx + 2] = tempRGB;
 	}
 
-	// zamyka plik i zwraca wskaŸnik bufora zawieraj¹cego wczytany obraz
 	fclose(filePtr);
 	return bitmapImage;
 }
-void szescian(void)
-{
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	{
-		// Parametry wierzcholkow
 
-		GLfloat sa[3] = { 0.0f,0.0f,0.0f };
-		GLfloat sb[3] = { 10.0f,0.0f,0.0f };
-		GLfloat sc[3] = { 10.0f,10.0f,0.0f };
-		GLfloat sd[3] = { 0.0f,10.0f,0.0f };
-		GLfloat se[3] = { 0.0f,0.0f,-10.0f };
-		GLfloat sf[3] = { 10.0f,0.0f,-10.0f };
-		GLfloat sg[3] = { 10.0f,10.0f,-10.0f };
-		GLfloat sh[3] = { 0.0f,10.0f,-10.0f };
-
-		GLfloat saa[3] = { 0.0f,0.0f,0.0f };
-		GLfloat sbb[3] = { 10.0f,10.0f,0.0f };
-		GLfloat scc[3] = { 10.0f,10.0f * cos(ys), 10.0f * sin(ys)};
-		GLfloat sdd[3] = { 0.0f,10.0f * cos(ys), 10.0f * sin(ys) };
-		// Sciany skladowe
-		glColor3f(1.0f, 0.0f, 0.0f);
-		glBegin(GL_POLYGON);
-		glVertex3fv(sa);
-		glVertex3fv(sb);
-		glVertex3fv(scc);
-		glVertex3fv(sdd);
-		glEnd();
-
-		glColor3f(0.0f, 1.0f, 0.0f);
-		glBegin(GL_POLYGON);
-		glVertex3fv(sb);
-		glVertex3fv(sf);
-		glVertex3fv(sg);
-		glVertex3fv(sc);
-		glEnd();
-
-		glColor3f(0.0f, 0.0f, 1.0f);
-		glBegin(GL_POLYGON);
-		glVertex3fv(sf);
-		glVertex3fv(se);
-		glVertex3fv(sh);
-		glVertex3fv(sg);
-		glEnd();
-
-		glColor3f(1.0f, 1.0f, 0.0f);
-		glBegin(GL_POLYGON);
-		glVertex3fv(se);
-		glVertex3fv(sa);
-		glVertex3fv(sd);
-		glVertex3fv(sh);
-		glEnd();
-
-		glColor3f(0.0f, 1.0f, 1.0f);
-		glBegin(GL_POLYGON);
-		glVertex3fv(sd);
-		glVertex3fv(sc);
-		glVertex3fv(sg);
-		glVertex3fv(sh);
-		glEnd();
-
-		glColor3f(1.0f, 0.0f, 1.0f);
-		glBegin(GL_POLYGON);
-		glVertex3fv(sa);
-		glVertex3fv(sb);
-		glVertex3fv(sf);
-		glVertex3fv(se);
-		glEnd();
-	}
+// Delikatnie faluj¹cy teren
+float getTerrainHeight(float x, float z) {
+	// Delikatne falowanie: ma³a amplituda 0.5, czêstotliwoœæ mniejsza 0.05
+	return -5.0f + sinf(x * 0.05f) * cosf(z * 0.05f) * 0.5f;
 }
 
-void walec(double r, double h, double offsetX, double offsetY, double offsetZ) {
-	const double PI = 3.14;
-	double x, y, alpha;
+// Deklaracje funkcji rysuj¹cych
+void prostopadloscian(double a, double b, double offsetX, double offsetY, double offsetZ);
+void prostopadloscian1(double a, double b, double offsetX, double offsetY, double offsetZ);
+void felga(double r, double h, double offsetX, double offsetY, double offsetZ);
+void walec(double r, double h, double offsetX, double offsetY, double offsetZ);
 
-	// Podstawa dolna
-	glBegin(GL_TRIANGLE_FAN);
-	glColor3d(0.8, 0.0, 0.0);
-	glVertex3d(offsetX, offsetY, offsetZ); // Œrodek podstawy dolnej
-	for (alpha = 0; alpha <= 2 * PI; alpha += PI / 128.0) {
-		x = r * sin(alpha) + offsetX;
-		y = r * cos(alpha) + offsetY;
-		glVertex3d(x, y, offsetZ);
-	}
-	glEnd();
-
-	// Œciany boczne
-	glBegin(GL_QUAD_STRIP);
-	for (alpha = 0.0; alpha <= 2 * PI; alpha += PI / 128.0) {
-		x = r * sin(alpha) + offsetX;
-		y = r * cos(alpha) + offsetY;
-		glVertex3d(x, y, offsetZ);         // Punkt na dolnej podstawie
-		glVertex3d(x, y, offsetZ + h);     // Punkt na górnej podstawie
-	}
-	glEnd();
-
-	// Podstawa górna
-	glBegin(GL_TRIANGLE_FAN);
-	glColor3d(0.8, 0.0, 0.0);
-	glVertex3d(offsetX, offsetY, offsetZ + h); // Œrodek podstawy górnej
-	for (alpha = 0; alpha <= 2 * PI; alpha += PI / 128.0) {
-		x = r * sin(alpha) + offsetX;
-		y = r * cos(alpha) + offsetY;
-		glVertex3d(x, y, offsetZ + h);
-	}
-	glEnd();
-}
-
-void ramie(double r1, double r2, double h, double d)
-{
-	double PI = 3.14, alpha, x, y;
-	glBegin(GL_TRIANGLE_FAN);
-		glColor3d(0.8, 0.0, 0);
-		glVertex3d(0, 0, 0);
-		for (alpha = PI; alpha <= 2 * PI; alpha += PI / 8.0)
-		{
-			x = r1*sin(alpha);
-			y = r1*cos(alpha);
-			glVertex3d(x, y, 0);
-		}
-	glEnd();
-
-	glBegin(GL_QUAD_STRIP);
-		for (alpha = 0; alpha >= -PI; alpha -= PI / 8.0)
-		{
-			x = r1*sin(alpha);
-			y = r1* cos(alpha);
-			glVertex3d(x, y, h);
-			glVertex3d(x, y, 0);
-		}
-	glEnd();
-
-	glBegin(GL_TRIANGLE_FAN);
-		glVertex3d(0, 0, h);
-		for (alpha = 0; alpha >= -PI; alpha -= PI / 8.0)
-		{
-			x = r1*sin(alpha);
-			y = r1*cos(alpha);
-			glVertex3d(x, y, h);
-		}
-	glEnd();
-
-	glBegin(GL_TRIANGLE_FAN);
-		glColor3d(0.8, 0.0, 0);
-		glVertex3d(d,r2,0);
-		glVertex3d(d, r2, h);
-		for (alpha = 0; alpha <= PI; alpha += PI / 8.0)
-		{
-			x = d + r2 * sin(alpha);
-			y = d + r2 * cos(alpha);
-			glVertex3d(x, y, 0);
-		}
-	glEnd();
-
-	glBegin(GL_QUAD_STRIP);
-		glVertex3d(d, r2, 0);
-		for (alpha = 0; alpha <= PI; alpha += PI / 8.0)
-		{
-			x = d+ r2*sin(alpha);
-			y = d +r2* cos(alpha);
-			glVertex3d(x, y, h);
-			glVertex3d(x, y, 0);
-		}
-	glEnd();
-
-	glBegin(GL_TRIANGLE_FAN);
-		glVertex3d(d, r2, h);
-		for (alpha = 0; alpha <= PI; alpha += PI / 8.0)
-		{
-			x = d +r2*sin(alpha);
-			y = d +r2*cos(alpha);
-			glVertex3d(x, y, h);
-		}
-	glEnd();
-}
-
-
-
-
-void cegla(double odlegloscs, double odlegloscw) {
-	for (float z = 0; z <= 10; z += 0.1) {
-		// Rysowanie dolnej œcianki - kolor czerwony
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 0.0);  // dolna œcianka
-		for (float x = 0 + odlegloscs; x <= 30 + odlegloscs; x += 0.1) {
-			glVertex3d(x, 0 + odlegloscw, z);
-			glVertex3d(x, 0 + odlegloscw, z + 0.1);
-		}
-		glEnd();
-	}
-
-	for (float z = 0 + odlegloscw; z <= 10 + odlegloscw; z += 0.1) {
-		// Rysowanie tylnej œcianki - kolor czerwony
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 0.0); // tylna œcianka
-		for (float x = 0 + odlegloscs; x <= 30 + odlegloscs; x += 0.1) {
-			glVertex3d(x, z, 0);
-			glVertex3d(x, z + 0.1, 0);
-		}
-		glEnd();
-	}
-
-	for (float z = 0 + odlegloscw; z <= 10 + odlegloscw; z += 0.1) {
-		// Rysowanie lewej œcianki - kolor czerwony
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 0.0); // lewa œcianka
-		for (float x = 0; x <= 10; x += 0.1) {
-			glVertex3d(-0.2 + odlegloscs, z, x);
-			glVertex3d(-0.2 + odlegloscs, z + 0.1, x);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 10; z += 0.1) {
-		// Rysowanie górnej œcianki - kolor czerwony
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 0.0); // górna œcianka
-		for (float x = 0 + odlegloscs; x <= 30 + odlegloscs; x += 0.1) {
-			glVertex3d(x, 10 + odlegloscw, z);
-			glVertex3d(x, 10 + odlegloscw, z + 0.1);
-		}
-		glEnd();
-	}
-
-	for (float x = 0 + odlegloscs; x <= 30 + odlegloscs; x += 0.1) {
-		// Rysowanie przedniej œcianki - kolor czerwony
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 0.0); // przednia œcianka
-		for (float y = 0 + odlegloscw; y <= 10 + odlegloscw; y += 0.1) {
-			glVertex3d(x, y, 10);
-			glVertex3d(x + 0.1, y, 10);
-		}
-		glEnd();
-	}
-
-	for (float z = 0 + odlegloscw; z <= 10 + odlegloscw; z += 0.1) {
-		// Rysowanie prawej œcianki - kolor czerwony
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 0.0); // prawa œcianka
-		for (float x = 0; x <= 10; x += 0.1) {
-			glVertex3d(30.0 + odlegloscs, z, x);
-			glVertex3d(30.0 + odlegloscs, z + 0.1, x);
-		}
-		glEnd();
-	}
-}
-void mur(double warstwy, double ilosc) {
-	for (int i = 0; i < warstwy; i++) {
-		for (int j = 0; j < ilosc; j++) {
-			if (i % 2 == 0) {
-				cegla(j * 33, i * 15);
-			}
-			else {
-				if (j == 0) {
-					cegla(15, i * 15);
-				}
-				else {
-					if (j != ilosc - 1) {
-						cegla(15 + j * 33, i * 15);
-					}
-				}
-			}
-		}
-	}
-}
 void prostopadloscian(double a, double b, double offsetX, double offsetY, double offsetZ) {
+	// Kod jak poprzednio, bez zmian
 	for (float z = 0; z <= 20; z += 0.1) {
 		glBegin(GL_TRIANGLE_STRIP);
 		for (float x = -10; x <= 20 + 75; x += 0.1) {
-			glColor3f(0.8, 0.0, 1);
+			glColor3f(0.8f, 0.0f, 1.0f);
 			glVertex3d(x + offsetX, 0 + offsetY, z + offsetZ);
-			glVertex3d(x+offsetX, 0+offsetY, z + 0.1+offsetZ);
+			glVertex3d(x + offsetX, 0 + offsetY, z + 0.1 + offsetZ);
 		}
 		glEnd();
 	}
 
+	// Reszta tak jak by³o...
 	for (float z = 0; z <= 20; z += 0.1) {
 		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 1.0, 0.0);
+		glColor3f(1.0f, 1.0f, 0.0f);
 		for (float x = -10; x <= 20 + 75; x += 0.1) {
-			glVertex3d(x+offsetX, z+offsetY, 0+offsetZ);
-			glVertex3d(x+offsetX, z + 0.1+offsetY, 0+offsetZ);
+			glVertex3d(x + offsetX, z + offsetY, 0 + offsetZ);
+			glVertex3d(x + offsetX, z + 0.1 + offsetY, 0 + offsetZ);
 		}
 		glEnd();
 	}
@@ -656,27 +223,27 @@ void prostopadloscian(double a, double b, double offsetX, double offsetY, double
 		glColor3d(0.8, 0.0, 0);
 		for (float x = 0; x <= 20; x += 0.1) {
 			glVertex3d(-10 + offsetX, z + offsetY, x + offsetZ);
-			glVertex3d(-10 + offsetX, z + 0.1+offsetY, x+offsetZ);
+			glVertex3d(-10 + offsetX, z + 0.1 + offsetY, x + offsetZ);
 		}
 		glEnd();
 	}
 
 	for (float z = 0; z <= 20; z += 0.1) {
 		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 0.0);
+		glColor3f(1.0f, 0.0f, 0.0f);
 		for (float x = -10; x <= 20 + 75; x += 0.1) {
-			glVertex3d(x+offsetX, 20+offsetY, z+offsetZ);
-			glVertex3d(x+offsetX, 20+offsetY, z + 0.1+offsetZ);
+			glVertex3d(x + offsetX, 20 + offsetY, z + offsetZ);
+			glVertex3d(x + offsetX, 20 + offsetY, z + 0.1 + offsetZ);
 		}
 		glEnd();
 	}
 
 	for (float x = -10; x <= 20 + 75; x += 0.1) {
 		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(0.0, 1.0, 0.0);
+		glColor3f(0.0f, 1.0f, 0.0f);
 		for (float y = 0; y <= 20; y += 0.1) {
-			glVertex3d(x+offsetX, y+offsetY, 20+offsetZ);
-			glVertex3d(x + 0.1+offsetX, y+offsetY, 20+offsetZ);
+			glVertex3d(x + offsetX, y + offsetY, 20 + offsetZ);
+			glVertex3d(x + 0.1 + offsetX, y + offsetY, 20 + offsetZ);
 		}
 		glEnd();
 	}
@@ -685,26 +252,29 @@ void prostopadloscian(double a, double b, double offsetX, double offsetY, double
 		glBegin(GL_TRIANGLE_STRIP);
 		glColor3d(0.8, 0.0, 0);
 		for (float x = 0; x <= 20; x += 0.1) {
-			glVertex3d( 95+offsetX, z+offsetY, x+offsetZ);
-			glVertex3d( 95+offsetX, z + 0.1+offsetY, x+offsetZ);
+			glVertex3d(95 + offsetX, z + offsetY, x + offsetZ);
+			glVertex3d(95 + offsetX, z + 0.1 + offsetY, x + offsetZ);
 		}
 		glEnd();
 	}
 }
+
 void prostopadloscian1(double a, double b, double offsetX, double offsetY, double offsetZ) {
+	// Jak poprzednio
 	for (float z = 0; z <= 20; z += 0.1) {
 		glBegin(GL_TRIANGLE_STRIP);
 		for (float x = 0; x <= 20; x += 0.1) {
-			glColor3f(0.8, 0.0, 1);
+			glColor3f(0.8f, 0.0f, 1.0f);
 			glVertex3d(x + offsetX, 0 + offsetY, z + offsetZ);
 			glVertex3d(x + offsetX, 0 + offsetY, z + 0.1 + offsetZ);
 		}
 		glEnd();
 	}
 
+	// Reszta bez zmian...
 	for (float z = 0; z <= 20; z += 0.1) {
 		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 1.0, 0.0);
+		glColor3f(1.0f, 1.0f, 0.0f);
 		for (float x = 0; x <= 20; x += 0.1) {
 			glVertex3d(x + offsetX, z + offsetY, 0 + offsetZ);
 			glVertex3d(x + offsetX, z + 0.1 + offsetY, 0 + offsetZ);
@@ -724,7 +294,7 @@ void prostopadloscian1(double a, double b, double offsetX, double offsetY, doubl
 
 	for (float z = 0; z <= 20; z += 0.1) {
 		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 0.0);
+		glColor3f(1.0f, 0.0f, 0.0f);
 		for (float x = 0; x <= 20; x += 0.1) {
 			glVertex3d(x + offsetX, 20 + offsetY, z + offsetZ);
 			glVertex3d(x + offsetX, 20 + offsetY, z + 0.1 + offsetZ);
@@ -734,7 +304,7 @@ void prostopadloscian1(double a, double b, double offsetX, double offsetY, doubl
 
 	for (float x = 0; x <= 20; x += 0.1) {
 		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(0.0, 1.0, 0.0);
+		glColor3f(0.0f, 1.0f, 0.0f);
 		for (float y = 0; y <= 20; y += 0.1) {
 			glVertex3d(x + offsetX, y + offsetY, 20 + offsetZ);
 			glVertex3d(x + 0.1 + offsetX, y + offsetY, 20 + offsetZ);
@@ -752,14 +322,14 @@ void prostopadloscian1(double a, double b, double offsetX, double offsetY, doubl
 		glEnd();
 	}
 }
+
 void felga(double r, double h, double offsetX, double offsetY, double offsetZ) {
 	const double PI = 3.14;
 	double x, y, alpha;
 
-	// Podstawa dolna
 	glBegin(GL_TRIANGLE_FAN);
 	glColor3d(0.8, 1.0, 0.0);
-	glVertex3d(offsetX, offsetY, offsetZ); // Œrodek podstawy dolnej
+	glVertex3d(offsetX, offsetY, offsetZ);
 	for (alpha = 0; alpha <= 2 * PI; alpha += PI / 128.0) {
 		x = r * sin(alpha) + offsetX;
 		y = r * cos(alpha) + offsetY;
@@ -767,20 +337,18 @@ void felga(double r, double h, double offsetX, double offsetY, double offsetZ) {
 	}
 	glEnd();
 
-	// Œciany boczne
 	glBegin(GL_QUAD_STRIP);
 	for (alpha = 0.0; alpha <= 2 * PI; alpha += PI / 128.0) {
 		x = r * sin(alpha) + offsetX;
 		y = r * cos(alpha) + offsetY;
-		glVertex3d(x, y, offsetZ);         // Punkt na dolnej podstawie
-		glVertex3d(x, y, offsetZ + h);     // Punkt na górnej podstawie
+		glVertex3d(x, y, offsetZ);
+		glVertex3d(x, y, offsetZ + h);
 	}
 	glEnd();
 
-	// Podstawa górna
 	glBegin(GL_TRIANGLE_FAN);
 	glColor3d(0.8, 1.0, 0.0);
-	glVertex3d(offsetX, offsetY, offsetZ + h); // Œrodek podstawy górnej
+	glVertex3d(offsetX, offsetY, offsetZ + h);
 	for (alpha = 0; alpha <= 2 * PI; alpha += PI / 128.0) {
 		x = r * sin(alpha) + offsetX;
 		y = r * cos(alpha) + offsetY;
@@ -788,720 +356,615 @@ void felga(double r, double h, double offsetX, double offsetY, double offsetZ) {
 	}
 	glEnd();
 }
-// Called to draw scene
-void RenderScene(void)
-	{
-	float normal[3];	// Storeage for calculated surface normal
 
-	// Clear the window with current clearing color
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+void walec(double r, double h, double offsetX, double offsetY, double offsetZ) {
+	const double PI = 3.14;
+	double x, y, alpha;
 
-	
-	// Save the matrix state and do the rotations
-	glMatrixMode(GL_MODELVIEW); // Prze³¹cz na macierz modelu-widoku
-	glLoadIdentity(); // Zresetuj macierz
-	//glPushMatrix();
-	/*glRotatef(xRot, 1.0f, 0.0f, 0.0f);
-	glRotatef(yRot, 0.0f, 1.0f, 0.0f);*/
-	gluLookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
+	glBegin(GL_TRIANGLE_FAN);
+	glColor3d(0.8, 0.0, 0.0);
+	glVertex3d(offsetX, offsetY, offsetZ);
+	for (alpha = 0; alpha <= 2 * PI; alpha += PI / 128.0) {
+		x = r * sin(alpha) + offsetX;
+		y = r * cos(alpha) + offsetY;
+		glVertex3d(x, y, offsetZ);
+	}
+	glEnd();
 
-	/////////////////////////////////////////////////////////////////
-	// MIEJSCE NA KOD OPENGL DO TWORZENIA WLASNYCH SCEN:		   //
-	/////////////////////////////////////////////////////////////////
-	//szescian();
-	
-	//Sposób na odróŸnienie "przedniej" i "tylniej" œciany wielok¹ta:
-	glPolygonMode(GL_BACK,GL_LINE);
-	//cegla(20.0, 10.0);
-	//mur(6, 4);
+	glBegin(GL_QUAD_STRIP);
+	for (alpha = 0.0; alpha <= 2 * PI; alpha += PI / 128.0) {
+		x = r * sin(alpha) + offsetX;
+		y = r * cos(alpha) + offsetY;
+		glVertex3d(x, y, offsetZ);
+		glVertex3d(x, y, offsetZ + h);
+	}
+	glEnd();
+
+	glBegin(GL_TRIANGLE_FAN);
+	glColor3d(0.8, 0.0, 0.0);
+	glVertex3d(offsetX, offsetY, offsetZ + h);
+	for (alpha = 0; alpha <= 2 * PI; alpha += PI / 128.0) {
+		x = r * sin(alpha) + offsetX;
+		y = r * cos(alpha) + offsetY;
+		glVertex3d(x, y, offsetZ + h);
+	}
+	glEnd();
+}
+
+void drawTerrain(int size, float scale) {
+	const float halfSize = size / 2.0f;
+
+	// Wype³nienie terenu
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glColor3f(0.2f, 0.8f, 0.2f);
+	for (int z = 0; z < size; ++z) {
+		glBegin(GL_TRIANGLE_STRIP);
+		for (int x = 0; x <= size; ++x) {
+			float worldX = (x - halfSize) * scale;
+			float worldZ = (z - halfSize) * scale;
+			float worldZNext = ((z + 1) - halfSize) * scale;
+
+			float height1 = getTerrainHeight(worldX, worldZ);
+			float height2 = getTerrainHeight(worldX, worldZNext);
+
+			glVertex3f(worldX, height1, worldZ);
+			glVertex3f(worldX, height2, worldZNext);
+		}
+		glEnd();
+	}
+
+	// Siatka terenu
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	glColor3f(0.0f, 0.0f, 0.0f);
+	for (int z = 0; z < size; ++z) {
+		glBegin(GL_TRIANGLE_STRIP);
+		for (int x = 0; x <= size; ++x) {
+			float worldX = (x - halfSize) * scale;
+			float worldZ = (z - halfSize) * scale;
+			float worldZNext = ((z + 1) - halfSize) * scale;
+
+			float height1 = getTerrainHeight(worldX, worldZ);
+			float height2 = getTerrainHeight(worldX, worldZNext);
+
+			glVertex3f(worldX, height1, worldZ);
+			glVertex3f(worldX, height2, worldZNext);
+		}
+		glEnd();
+	}
+
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
+void drawTractor() {
+	glPushMatrix();
+
+	glTranslatef(tractorX, tractorY, tractorZ);
+	glRotatef(tractorYaw, 0.0f, 1.0f, 0.0f);
+	glRotatef(tractorRoll * 180.0f / M_PI, 0.0f, 0.0f, 1.0f);
+	glRotatef(tractorPitch * 180.0f / M_PI, 1.0f, 0.0f, 0.0f);
+
+	glScalef(0.1f, 0.1f, 0.1f);
+
 	prostopadloscian1(10, 10, 0, 20, 20);
 	prostopadloscian(10, 10, 0, 0, 20);
+
 	walec(10, 10, 0, 0, 0);
 	walec(10, 10, 0, 0, 50);
 	walec(2.5, 40, 0, 0, 10);
 	walec(2.5, 40, 90, 0, 10);
 	walec(8, 10, 90, 0, 0);
 	walec(8, 10, 90, 0, 50);
+
 	felga(8, 2, 0, 0, -2);
 	felga(8, 2, 0, 0, 60);
 	felga(6, 2, 90, 0, -2);
 	felga(6, 2, 90, 0, 60);
-	//walec(40, 40);
-	//szescian();
-	/*for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glColor3f(0.8, 0.0, 1);
-			glVertex3d(x, 0, z);
-			glVertex3d(x, 0, z + 0.1);
-		}
-		glEnd();
-	}
 
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 1.0, 0.0);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glVertex3d(x, z, 0);
-			glVertex3d(x, z + 0.1, 0);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3d(0.8, 0.0, 0);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glVertex3d(-0.2, z, x);
-			glVertex3d(-0.2, z + 0.1, x);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 0.0);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glVertex3d(x, 20, z);
-			glVertex3d(x, 20, z + 0.1);
-		}
-		glEnd();
-	}
-
-	for (float x = 0; x <= 20; x += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(0.0, 1.0, 0.0);
-		for (float y = 0; y <= 20; y += 0.1) {
-			glVertex3d(x, y, 20);
-			glVertex3d(x + 0.1, y, 20);
-		}
-		glEnd();
-	}
-
-	for (float x = 20; x <= 40; x += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(0.0, 0.0, 1.0);
-		for (float y = 10; y <= 20; y += 0.1) {
-			glVertex3d(x, y, 20);
-			glVertex3d(x + 0.1, y, 20);
-		}
-		glEnd();
-	}
-
-	for (float x = 20; x <= 40; x += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.5, 0.0);
-		for (float y = 10; y <= 20; y += 0.1) {
-			glVertex3d(x, y, 0);
-			glVertex3d(x + 0.1, y, 0);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(0.5, 0.0, 0.5);
-		for (float x = 20; x <= 40; x += 0.1) {
-			glVertex3d(x, 20, z);
-			glVertex3d(x, 20, z + 0.1);
-		}
-		glEnd();
-	}
-
-	for (float x = 40; x <= 60; x += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(0.0, 1.0, 1.0);
-		for (float y = 0; y <= 20; y += 0.1) {
-			glVertex3d(x, y, 20);
-			glVertex3d(x + 0.1, y, 20);
-		}
-		glEnd();
-	}
-
-	for (float x = 40; x <= 60; x += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 1.0);
-		for (float y = 0; y <= 20; y += 0.1) {
-			glVertex3d(x, y, 0);
-			glVertex3d(x + 0.1, y, 0);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(0.5, 1.0, 0.0);
-		for (float x = 40; x <= 60; x += 0.1) {
-			glVertex3d(x, 0, z);
-			glVertex3d(x, 0, z + 0.1);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(0.32, 0.0, 0.44);
-		for (float x = 40; x <= 60; x += 0.1) {
-			glVertex3d(x, 20, z);
-			glVertex3d(x, 20, z + 0.1);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3d(0.8, 0.0, 0);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glVertex3d(60.2, z, x);
-			glVertex3d(60.2, z + 0.1, x);
-		}
-		glEnd();
-	}
-
-	double x, y, alpha, PI = 3.14;
-	x = 25;
-	y = 0;
-	glBegin(GL_TRIANGLE_FAN);
-	glColor3d(0.8, 0.0, 0);
-	glVertex3d(40, 10, 0);
-	for (alpha = 0; alpha <= 0.5 * PI; alpha += PI / 256.0) {
-		x = 10 * cos(alpha) + 30;
-		y = 10 * sin(alpha);
-		glVertex3d(x, y, 0);
-	}
-	glEnd();
-
-	x = 25;
-	y = 0;
-	glBegin(GL_TRIANGLE_FAN);
-	glColor3d(0.8, 0.0, 0);
-	glVertex3d(40, 10, 20);
-	for (alpha = 0; alpha <= 0.5 * PI; alpha += PI / 256.0) {
-		x = 10 * cos(alpha) + 30;
-		y = 10 * sin(alpha);
-		glVertex3d(x, y, 20);
-	}
-	glEnd();
-
-	x = 0;
-	y = 0;
-	glBegin(GL_TRIANGLE_FAN);
-	glColor3d(0.8, 0.0, 0);
-	glVertex3d(20, 10, 0);
-	for (alpha = 2.5 * 3.14; alpha <= 3 * PI; alpha += PI / 256.0) {
-		x = 10 * cos(alpha) + 30;
-		y = 10 * sin(alpha);
-		glVertex3d(x, y, 0);
-	}
-	glEnd();
-
-	x = 0;
-	y = 0;
-	glBegin(GL_TRIANGLE_FAN);
-	glColor3d(0.8, 0.0, 0);
-	glVertex3d(20, 10, 20);
-	for (alpha = 2.5 * 3.14; alpha <= 3 * PI; alpha += PI / 256.0) {
-		x = 10 * cos(alpha) + 30;
-		y = 10 * sin(alpha);
-		glVertex3d(x, y, 20);
-	}
-	glEnd();
-
-	x = 0;
-	y = 0;
-	glBegin(GL_TRIANGLE_STRIP);
-	glColor3f(1.0, 0.0, 1.0);
-	for (alpha = 1.5 * 3.14; alpha <= 2.5 * PI; alpha += PI / 256.0) {
-		x = 10 * sin(alpha) + 30;
-		y = 10 * cos(alpha);
-		glVertex3d(x, y, 0);
-		glVertex3d(x, y, 20);
-	}
-	glEnd();*/
-	
-
-	//
-	///*x = 10 * sin(0.0);
-	//y = 10 * cos(0.0);
-	//glVertex3d(x, y, 0); 
-	//glVertex3d(x, y, 20); */
-	//glEnd();
-	//ramie(10,10,10,10);
-	//Uzyskanie siatki:
-	glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
-
-	//Wyrysowanie prostokata:
-	//glRectd(-10.0,-10.0,20.0,20.0);
-	/////////////////////////////////////////////////////////////////
-	/////////////////////////////////////////////////////////////////
-	/////////////////////////////////////////////////////////////////
 	glPopMatrix();
+}
+
+void updateTractor() {
+	// Zastosuj przyspieszenie do prêdkoœci
+	tractorSpeedForward += tractorAcceleration;
+
+	// Ogranicz prêdkoœæ maksymaln¹
+	if (tractorSpeedForward > maxSpeed) tractorSpeedForward = maxSpeed;
+	if (tractorSpeedForward < -0.3f) tractorSpeedForward = -0.3f; // cofanie wolniejsze
+
+	// Tarcie: gdy nie wciskasz I/K w kolejnej klatce i acceleration = 0
+	// prêdkoœæ powoli spada do zera
+	if (fabs(tractorAcceleration) < 0.0001f) {
+		if (tractorSpeedForward > 0.0f) {
+			tractorSpeedForward -= friction;
+			if (tractorSpeedForward < 0.0f) tractorSpeedForward = 0.0f;
+		}
+		else if (tractorSpeedForward < 0.0f) {
+			tractorSpeedForward += friction;
+			if (tractorSpeedForward > 0.0f) tractorSpeedForward = 0.0f;
+		}
+	}
+
+	// Wyzeruj acceleration po ka¿dej klatce, ¿eby wymusiæ ponowne trzymanie klawisza
+	// do przyspieszenia lub hamowania.
+	tractorAcceleration = 0.0f;
+
+	// Reszta kodu jak wczeœniej:
+	float dirX = cosf(tractorYaw * M_PI / 180.0f);
+	float dirZ = sinf(tractorYaw * M_PI / 180.0f);
+
+	tractorX += dirX * tractorSpeedForward;
+	tractorZ += dirZ * tractorSpeedForward;
+
+	float baseHeight = 0.5f;
+	float terrainHeight = getTerrainHeight(tractorX, tractorZ);
+	tractorY = terrainHeight + baseHeight;
+
+	float frontHeight = getTerrainHeight(tractorX + dirX, tractorZ + dirZ);
+	float backHeight = getTerrainHeight(tractorX - dirX, tractorZ - dirZ);
+	float dzForward = frontHeight - backHeight;
+	tractorPitch = atan2f(dzForward, 2.0f);
+
+	float rightX = cosf((tractorYaw + 90.0f) * M_PI / 180.0f);
+	float rightZ = sinf((tractorYaw + 90.0f) * M_PI / 180.0f);
+
+	float rightHeight = getTerrainHeight(tractorX + rightX, tractorZ + rightZ);
+	float leftHeight = getTerrainHeight(tractorX - rightX, tractorZ - rightZ);
+
+	float dzRight = rightHeight - leftHeight;
+	tractorRoll = atan2f(dzRight, 2.0f);
+}
+
+// Funkcja rysuj¹ca prosty budynek (kostka)
+void drawBuilding(float posX, float posZ) {
+	float h = getTerrainHeight(posX, posZ);
+	glPushMatrix();
+	glTranslatef(posX, h, posZ);
+	// Budynek: prosta kostka
+	float size = 5.0f;
+	glColor3f(0.7f, 0.7f, 0.7f);
+	glBegin(GL_QUADS);
+	// Góra
+	glVertex3f(-size, size, -size);
+	glVertex3f(size, size, -size);
+	glVertex3f(size, size, size);
+	glVertex3f(-size, size, size);
+	// Dó³
+	glVertex3f(-size, 0, -size);
+	glVertex3f(size, 0, -size);
+	glVertex3f(size, 0, size);
+	glVertex3f(-size, 0, size);
+	// Przód
+	glVertex3f(-size, 0, size);
+	glVertex3f(size, 0, size);
+	glVertex3f(size, size, size);
+	glVertex3f(-size, size, size);
+	// Ty³
+	glVertex3f(-size, 0, -size);
+	glVertex3f(-size, size, -size);
+	glVertex3f(size, size, -size);
+	glVertex3f(size, 0, -size);
+	// Lewo
+	glVertex3f(-size, 0, -size);
+	glVertex3f(-size, 0, size);
+	glVertex3f(-size, size, size);
+	glVertex3f(-size, size, -size);
+	// Prawo
+	glVertex3f(size, 0, -size);
+	glVertex3f(size, 0, size);
+	glVertex3f(size, size, size);
+	glVertex3f(size, size, -size);
+	glEnd();
+
+	glPopMatrix();
+}
+
+// Funkcja rysuj¹ca drzewo: pieñ (walec) i korona (sto¿ek)
+void drawTree(float posX, float posZ) {
+	float h = getTerrainHeight(posX, posZ);
+	glPushMatrix();
+	glTranslatef(posX, h, posZ);
+
+	// Rotacja tak, aby walec by³ pionowy wzd³u¿ osi Y:
+	glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
+
+	// Pieñ - walec
+	glColor3f(0.5f, 0.3f, 0.1f);
+	GLUquadric* quad = gluNewQuadric();
+	gluQuadricNormals(quad, GLU_SMOOTH);
+	gluCylinder(quad, 0.5f, 0.5f, 5.0f, 16, 16);
+
+	// Korona - sto¿ek
+	glTranslatef(0.0f, 0.0f, 5.0f); // przesuwamy wzd³u¿ nowej osi Z (dawnej Y)
+	glColor3f(0.0f, 0.8f, 0.0f);
+	gluCylinder(quad, 3.0f, 0.0f, 4.0f, 16, 16);
+
+	gluDeleteQuadric(quad);
+	glPopMatrix();
+}
+
+void RenderScene(void)
+{
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
 
-	// Flush drawing commands
+	gluLookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
+
+	updateTractor();
+
+	drawTerrain(300, 0.5f);
+
+	// Rysowanie budynku w punkcie (10, 10)
+	drawBuilding(10.0f, 10.0f);
+
+	// Rysowanie drzewa w punkcie (-10, 5)
+	drawTree(-10.0f, 5.0f);
+	glTranslatef(10.0, 1.0, -10.0);
+	drawTractor();
+
+	glMatrixMode(GL_MODELVIEW);
 	glFlush();
-	}
+}
 
 
-// Select the pixel format for a given device context
 void SetDCPixelFormat(HDC hDC)
-	{
+{
 	int nPixelFormat;
-
 	static PIXELFORMATDESCRIPTOR pfd = {
-		sizeof(PIXELFORMATDESCRIPTOR),  // Size of this structure
-		1,                                                              // Version of this structure    
-		PFD_DRAW_TO_WINDOW |                    // Draw to Window (not to bitmap)
-		PFD_SUPPORT_OPENGL |					// Support OpenGL calls in window
-		PFD_DOUBLEBUFFER,                       // Double buffered
-		PFD_TYPE_RGBA,                          // RGBA Color mode
-		24,                                     // Want 24bit color 
-		0,0,0,0,0,0,                            // Not used to select mode
-		0,0,                                    // Not used to select mode
-		0,0,0,0,0,                              // Not used to select mode
-		32,                                     // Size of depth buffer
-		0,                                      // Not used to select mode
-		0,                                      // Not used to select mode
-		PFD_MAIN_PLANE,                         // Draw in main plane
-		0,                                      // Not used to select mode
-		0,0,0 };                                // Not used to select mode
+		sizeof(PIXELFORMATDESCRIPTOR),
+		1,
+		PFD_DRAW_TO_WINDOW |
+		PFD_SUPPORT_OPENGL |
+		PFD_DOUBLEBUFFER,
+		PFD_TYPE_RGBA,
+		24,
+		0,0,0,0,0,0,
+		0,0,
+		0,0,0,0,0,
+		32,
+		0,
+		0,
+		PFD_MAIN_PLANE,
+		0,
+		0,0,0 };
 
-	// Choose a pixel format that best matches that described in pfd
 	nPixelFormat = ChoosePixelFormat(hDC, &pfd);
-
-	// Set the pixel format for the device context
 	SetPixelFormat(hDC, nPixelFormat, &pfd);
-	}
+}
 
 
-
-// If necessary, creates a 3-3-2 palette for the device context listed.
 HPALETTE GetOpenGLPalette(HDC hDC)
-	{
-	HPALETTE hRetPal = NULL;	// Handle to palette to be created
-	PIXELFORMATDESCRIPTOR pfd;	// Pixel Format Descriptor
-	LOGPALETTE *pPal;			// Pointer to memory for logical palette
-	int nPixelFormat;			// Pixel format index
-	int nColors;				// Number of entries in palette
-	int i;						// Counting variable
-	BYTE RedRange,GreenRange,BlueRange;
-								// Range for each color entry (7,7,and 3)
+{
+	HPALETTE hRetPal = NULL;
+	PIXELFORMATDESCRIPTOR pfd;
+	LOGPALETTE* pPal;
+	int nPixelFormat;
+	int nColors;
+	int i;
+	BYTE RedRange, GreenRange, BlueRange;
 
-
-	// Get the pixel format index and retrieve the pixel format description
 	nPixelFormat = GetPixelFormat(hDC);
 	DescribePixelFormat(hDC, nPixelFormat, sizeof(PIXELFORMATDESCRIPTOR), &pfd);
 
-	// Does this pixel format require a palette?  If not, do not create a
-	// palette and just return NULL
-	if(!(pfd.dwFlags & PFD_NEED_PALETTE))
+	if (!(pfd.dwFlags & PFD_NEED_PALETTE))
 		return NULL;
 
-	// Number of entries in palette.  8 bits yeilds 256 entries
-	nColors = 1 << pfd.cColorBits;	
+	nColors = 1 << pfd.cColorBits;
 
-	// Allocate space for a logical palette structure plus all the palette entries
-	pPal = (LOGPALETTE*)malloc(sizeof(LOGPALETTE) +nColors*sizeof(PALETTEENTRY));
+	pPal = (LOGPALETTE*)malloc(sizeof(LOGPALETTE) + nColors * sizeof(PALETTEENTRY));
+	pPal->palVersion = 0x300;
+	pPal->palNumEntries = nColors;
 
-	// Fill in palette header 
-	pPal->palVersion = 0x300;		// Windows 3.0
-	pPal->palNumEntries = nColors; // table size
-
-	// Build mask of all 1's.  This creates a number represented by having
-	// the low order x bits set, where x = pfd.cRedBits, pfd.cGreenBits, and
-	// pfd.cBlueBits.  
-	RedRange = (1 << pfd.cRedBits) -1;
+	RedRange = (1 << pfd.cRedBits) - 1;
 	GreenRange = (1 << pfd.cGreenBits) - 1;
-	BlueRange = (1 << pfd.cBlueBits) -1;
+	BlueRange = (1 << pfd.cBlueBits) - 1;
 
-	// Loop through all the palette entries
-	for(i = 0; i < nColors; i++)
-		{
-		// Fill in the 8-bit equivalents for each component
+	for (i = 0; i < nColors; i++)
+	{
 		pPal->palPalEntry[i].peRed = (i >> pfd.cRedShift) & RedRange;
-		pPal->palPalEntry[i].peRed = (unsigned char)(
-			(double) pPal->palPalEntry[i].peRed * 255.0 / RedRange);
+		pPal->palPalEntry[i].peRed = (unsigned char)((double)pPal->palPalEntry[i].peRed * 255.0 / RedRange);
 
 		pPal->palPalEntry[i].peGreen = (i >> pfd.cGreenShift) & GreenRange;
-		pPal->palPalEntry[i].peGreen = (unsigned char)(
-			(double)pPal->palPalEntry[i].peGreen * 255.0 / GreenRange);
+		pPal->palPalEntry[i].peGreen = (unsigned char)((double)pPal->palPalEntry[i].peGreen * 255.0 / GreenRange);
 
 		pPal->palPalEntry[i].peBlue = (i >> pfd.cBlueShift) & BlueRange;
-		pPal->palPalEntry[i].peBlue = (unsigned char)(
-			(double)pPal->palPalEntry[i].peBlue * 255.0 / BlueRange);
+		pPal->palPalEntry[i].peBlue = (unsigned char)((double)pPal->palPalEntry[i].peBlue * 255.0 / BlueRange);
 
-		pPal->palPalEntry[i].peFlags = (unsigned char) NULL;
-		}
-		
-
-	// Create the palette
-	hRetPal = CreatePalette(pPal);
-
-	// Go ahead and select and realize the palette for this device context
-	SelectPalette(hDC,hRetPal,FALSE);
-	RealizePalette(hDC);
-
-	// Free the memory used for the logical palette structure
-	free(pPal);
-
-	// Return the handle to the new palette
-	return hRetPal;
+		pPal->palPalEntry[i].peFlags = (unsigned char)NULL;
 	}
 
+	hRetPal = CreatePalette(pPal);
+	SelectPalette(hDC, hRetPal, FALSE);
+	RealizePalette(hDC);
+	free(pPal);
 
-// Entry point of all Windows programs
-int APIENTRY WinMain(   HINSTANCE       hInst,
-						HINSTANCE       hPrevInstance,
-						LPSTR           lpCmdLine,
-						int                     nCmdShow)
-	{
-	MSG                     msg;            // Windows message structure
-	WNDCLASS        wc;                     // Windows class structure
-	HWND            hWnd;           // Storeage for window handle
+	return hRetPal;
+}
+
+
+int APIENTRY WinMain(HINSTANCE       hInst,
+	HINSTANCE       hPrevInstance,
+	LPSTR           lpCmdLine,
+	int             nCmdShow)
+{
+	MSG     msg;
+	WNDCLASS wc;
+	HWND    hWnd;
 
 	hInstance = hInst;
 
-	// Register Window style
-	wc.style                        = CS_HREDRAW | CS_VREDRAW;
-	wc.lpfnWndProc          = (WNDPROC) WndProc;
-	wc.cbClsExtra           = 0;
-	wc.cbWndExtra           = 0;
-	wc.hInstance            = hInstance;
-	wc.hIcon                        = NULL;
-	wc.hCursor                      = LoadCursor(NULL, IDC_ARROW);
-	
-	// No need for background brush for OpenGL window
-	wc.hbrBackground        = NULL;         
-	
-	wc.lpszMenuName         = MAKEINTRESOURCE(IDR_MENU);
-	wc.lpszClassName        = lpszAppName;
+	wc.style = CS_HREDRAW | CS_VREDRAW;
+	wc.lpfnWndProc = (WNDPROC)WndProc;
+	wc.cbClsExtra = 0;
+	wc.cbWndExtra = 0;
+	wc.hInstance = hInstance;
+	wc.hIcon = NULL;
+	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wc.hbrBackground = NULL;
+	wc.lpszMenuName = MAKEINTRESOURCE(IDR_MENU);
+	wc.lpszClassName = lpszAppName;
 
-	// Register the window class
-	if(RegisterClass(&wc) == 0)
+	if (RegisterClass(&wc) == 0)
 		return FALSE;
 
-
-	// Create the main application window
 	hWnd = CreateWindow(
-				lpszAppName,
-				lpszAppName,
-				
-				// OpenGL requires WS_CLIPCHILDREN and WS_CLIPSIBLINGS
-				WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
-	
-				// Window position and size
-				50, 50,
-				400, 400,
-				NULL,
-				NULL,
-				hInstance,
-				NULL);
+		lpszAppName,
+		lpszAppName,
+		WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+		50, 50,
+		400, 400,
+		NULL,
+		NULL,
+		hInstance,
+		NULL);
 
-	// If window was not created, quit
-	if(hWnd == NULL)
+	if (hWnd == NULL)
 		return FALSE;
 
-
-	// Display the window
-	ShowWindow(hWnd,SW_SHOW);
+	ShowWindow(hWnd, SW_SHOW);
 	UpdateWindow(hWnd);
 
-	// Process application messages until the application closes
-	while( GetMessage(&msg, NULL, 0, 0))
-		{
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
-		}
+	}
 
 	return msg.wParam;
-	}
+}
 
 
-
-
-// Window procedure, handles all messages for this program
-LRESULT CALLBACK WndProc(       HWND    hWnd,
-							UINT    message,
-							WPARAM  wParam,
-							LPARAM  lParam)
-	{
-	static HGLRC hRC;               // Permenant Rendering context
-	static HDC hDC;                 // Private GDI Device context
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	static HGLRC hRC;
+	static HDC hDC;
 
 	switch (message)
+	{
+	case WM_CREATE:
+		hDC = GetDC(hWnd);
+		SetDCPixelFormat(hDC);
+		hPalette = GetOpenGLPalette(hDC);
+		hRC = wglCreateContext(hDC);
+		wglMakeCurrent(hDC, hRC);
+		SetupRC();
+		glGenTextures(2, &texture[0]);
+
+		bitmapData = LoadBitmapFile("Bitmapy\\checker.bmp", &bitmapInfoHeader);
+		glBindTexture(GL_TEXTURE_2D, texture[0]);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, bitmapInfoHeader.biWidth,
+			bitmapInfoHeader.biHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, bitmapData);
+		if (bitmapData)
+			free(bitmapData);
+
+		bitmapData = LoadBitmapFile("Bitmapy\\crate.bmp", &bitmapInfoHeader);
+		glBindTexture(GL_TEXTURE_2D, texture[1]);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, bitmapInfoHeader.biWidth,
+			bitmapInfoHeader.biHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, bitmapData);
+		if (bitmapData)
+			free(bitmapData);
+
+		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+		break;
+
+	case WM_DESTROY:
+		wglMakeCurrent(hDC, NULL);
+		wglDeleteContext(hRC);
+		if (hPalette != NULL)
+			DeleteObject(hPalette);
+		PostQuitMessage(0);
+		break;
+
+	case WM_SIZE:
+		ChangeSize(LOWORD(lParam), HIWORD(lParam));
+		break;
+
+	case WM_PAINT:
+	{
+		RenderScene();
+		SwapBuffers(hDC);
+		ValidateRect(hWnd, NULL);
+	}
+	break;
+
+	case WM_QUERYNEWPALETTE:
+		if (hPalette)
 		{
-		// Window creation, setup for OpenGL
-		case WM_CREATE:
-			// Store the device context
-			hDC = GetDC(hWnd);              
+			int nRet;
+			SelectPalette(hDC, hPalette, FALSE);
+			nRet = RealizePalette(hDC);
+			InvalidateRect(hWnd, NULL, FALSE);
+			return nRet;
+		}
+		break;
 
-			// Select the pixel format
-			SetDCPixelFormat(hDC);          
-
-			// Create palette if needed
-			hPalette = GetOpenGLPalette(hDC);
-
-			// Create the rendering context and make it current
-			hRC = wglCreateContext(hDC);
-			wglMakeCurrent(hDC, hRC);
-			SetupRC();
-			glGenTextures(2, &texture[0]);                  // tworzy obiekt tekstury			
-			
-			// ³aduje pierwszy obraz tekstury:
-			bitmapData = LoadBitmapFile("Bitmapy\\checker.bmp", &bitmapInfoHeader);
-			
-			glBindTexture(GL_TEXTURE_2D, texture[0]);       // aktywuje obiekt tekstury
-
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP );
-
-			// tworzy obraz tekstury
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, bitmapInfoHeader.biWidth,
-						 bitmapInfoHeader.biHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, bitmapData);
-			
-			if(bitmapData)
-			free(bitmapData);
-
-			// ³aduje drugi obraz tekstury:
-			bitmapData = LoadBitmapFile("Bitmapy\\crate.bmp", &bitmapInfoHeader);
-			glBindTexture(GL_TEXTURE_2D, texture[1]);       // aktywuje obiekt tekstury
-
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP );
-
-			// tworzy obraz tekstury
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, bitmapInfoHeader.biWidth,
-						 bitmapInfoHeader.biHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, bitmapData);
-			
-			if(bitmapData)
-			free(bitmapData);
-
-			// ustalenie sposobu mieszania tekstury z t³em
-			glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE,GL_MODULATE);
-			break;
-
-		// Window is being destroyed, cleanup
-		case WM_DESTROY:
-			// Deselect the current rendering context and delete it
-			wglMakeCurrent(hDC,NULL);
-			wglDeleteContext(hRC);
-
-			// Delete the palette if it was created
-			if(hPalette != NULL)
-				DeleteObject(hPalette);
-
-			// Tell the application to terminate after the window
-			// is gone.
-			PostQuitMessage(0);
-			break;
-
-		// Window is resized.
-		case WM_SIZE:
-			// Call our function which modifies the clipping
-			// volume and viewport
-			ChangeSize(LOWORD(lParam), HIWORD(lParam));
-			break;
-
-
-		// The painting function.  This message sent by Windows 
-		// whenever the screen needs updating.
-		case WM_PAINT:
-			{
-			// Call OpenGL drawing code
-			RenderScene();
-
-			SwapBuffers(hDC);
-
-			// Validate the newly painted client area
-			ValidateRect(hWnd,NULL);
-			}
-			break;
-
-		// Windows is telling the application that it may modify
-		// the system palette.  This message in essance asks the 
-		// application for a new palette.
-		case WM_QUERYNEWPALETTE:
-			// If the palette was created.
-			if(hPalette)
-				{
-				int nRet;
-
-				// Selects the palette into the current device context
-				SelectPalette(hDC, hPalette, FALSE);
-
-				// Map entries from the currently selected palette to
-				// the system palette.  The return value is the number 
-				// of palette entries modified.
-				nRet = RealizePalette(hDC);
-
-				// Repaint, forces remap of palette in current window
-				InvalidateRect(hWnd,NULL,FALSE);
-
-				return nRet;
-				}
-			break;
-
-	
-		// This window may set the palette, even though it is not the 
-		// currently active window.
-		case WM_PALETTECHANGED:
-			// Don't do anything if the palette does not exist, or if
-			// this is the window that changed the palette.
-			if((hPalette != NULL) && ((HWND)wParam != hWnd))
-				{
-				// Select the palette into the device context
-				SelectPalette(hDC,hPalette,FALSE);
-
-				// Map entries to system palette
-				RealizePalette(hDC);
-				
-				// Remap the current colors to the newly realized palette
-				UpdateColors(hDC);
-				return 0;
-				}
-			break;
-
-		// Key press, check for arrow keys to do cube rotation.
-		case WM_KEYDOWN:
-			{
-			if (wParam == 'A') {
-				xs += 30;
-				if(xs > 90.0f) xs = 0.0f;
-				ys = xs * 3.141592653589793238462643 / 180;
-			}
-			if(wParam == VK_UP)
-				xRot-= 5.0f;
-
-			if(wParam == VK_DOWN)
-				xRot += 5.0f;
-
-			if(wParam == VK_LEFT)
-				yRot -= 5.0f;
-
-			if(wParam == VK_RIGHT)
-				yRot += 5.0f;
-			if (wParam == 'W') {
-				eyeZ -= speed;
-				centerZ -= speed;
-			}
-			if (wParam == 'S') {
-				eyeZ += speed;
-				centerZ += speed;
-			}
-			if (wParam == 'A') {
-				eyeX -= speed;
-				centerX -= speed;
-			}
-			if (wParam == 'D') {
-				eyeX += speed;
-				centerX += speed;
-			}
-			if (wParam == 'Q') {
-				eyeY += speed;
-				centerY += speed;
-			}
-			if (wParam == 'E') {
-				eyeY -= speed;
-				centerY -= speed;
-			}
-
-			xRot = (const int)xRot % 360;
-			yRot = (const int)yRot % 360;
-
-			InvalidateRect(hWnd,NULL,FALSE);
-			}
-			break;
-
-		// A menu command
-		case WM_COMMAND:
-			{
-			switch(LOWORD(wParam))
-				{
-				// Exit the program
-				case ID_FILE_EXIT:
-					DestroyWindow(hWnd);
-					break;
-
-				// Display the about box
-				case ID_HELP_ABOUT:
-					DialogBox (hInstance,
-						MAKEINTRESOURCE(IDD_DIALOG_ABOUT),
-						hWnd,
-						AboutDlgProc);
-					break;
-				}
-			}
-			break;
-
-
-	default:   // Passes it on if unproccessed
-	    return (DefWindowProc(hWnd, message, wParam, lParam));
-
-	}
-
-    return (0L);
-	}
-
-
-
-
-// Dialog procedure.
-BOOL APIENTRY AboutDlgProc (HWND hDlg, UINT message, UINT wParam, LONG lParam)
+	case WM_KEYDOWN:
 	{
-	
-    switch (message)
-	{
-		// Initialize the dialog box
-	    case WM_INITDIALOG:
-			{
-			int i;
-			GLenum glError;
-
-			// glGetString demo
-			SetDlgItemText(hDlg,IDC_OPENGL_VENDOR,glGetString(GL_VENDOR));
-			SetDlgItemText(hDlg,IDC_OPENGL_RENDERER,glGetString(GL_RENDERER));
-			SetDlgItemText(hDlg,IDC_OPENGL_VERSION,glGetString(GL_VERSION));
-			SetDlgItemText(hDlg,IDC_OPENGL_EXTENSIONS,glGetString(GL_EXTENSIONS));
-
-			// gluGetString demo
-			SetDlgItemText(hDlg,IDC_GLU_VERSION,gluGetString(GLU_VERSION));
-			SetDlgItemText(hDlg,IDC_GLU_EXTENSIONS,gluGetString(GLU_EXTENSIONS));
-
-
-			// Display any recent error messages
-			i = 0;
-			do {
-				glError = glGetError();
-				SetDlgItemText(hDlg,IDC_ERROR1+i,gluErrorString(glError));
-				i++;
-				}
-			while(i < 6 && glError != GL_NO_ERROR);
-
-
-			return (TRUE);
-			}
-			break;
-
-		// Process command messages
-	    case WM_COMMAND:      
-			{
-			// Validate and Make the changes
-			if(LOWORD(wParam) == IDOK)
-				EndDialog(hDlg,TRUE);
-		    }
-			break;
-
-		// Closed from sysbox
-		case WM_CLOSE:
-			EndDialog(hDlg,TRUE);
-			break;
+		float frontX = centerX - eyeX;
+		float frontY = centerY - eyeY;
+		float frontZ = centerZ - eyeZ;
+		float length = sqrtf(frontX * frontX + frontY * frontY + frontZ * frontZ);
+		if (length != 0.0f) {
+			frontX /= length;
+			frontY /= length;
+			frontZ /= length;
 		}
 
-	return FALSE;
+		float rightX = cosf((yaw - 90.0f) * M_PI / 180.0f);
+		float rightY = 0.0f;
+		float rightZ = sinf((yaw - 90.0f) * M_PI / 180.0f);
+
+		switch (wParam) {
+		case 'W':
+			eyeX += frontX * speed;
+			eyeY += frontY * speed;
+			eyeZ += frontZ * speed;
+			break;
+		case 'S':
+			eyeX -= frontX * speed;
+			eyeY -= frontY * speed;
+			eyeZ -= frontZ * speed;
+			break;
+		case 'A':
+			eyeX -= rightX * speed;
+			eyeZ -= rightZ * speed;
+			break;
+		case 'D':
+			eyeX += rightX * speed;
+			eyeZ += rightZ * speed;
+			break;
+		case 'Q':
+			eyeY += speed;
+			break;
+		case 'E':
+			eyeY -= speed;
+			break;
+		case VK_LEFT:
+			yaw -= sensitivity;
+			break;
+		case VK_RIGHT:
+			yaw += sensitivity;
+			break;
+		case VK_UP:
+			pitch += sensitivity;
+			if (pitch > 89.0f) pitch = 89.0f;
+			break;
+		case VK_DOWN:
+			pitch -= sensitivity;
+			if (pitch < -89.0f) pitch = -89.0f;
+			break;
+
+			// Sterowanie traktorem
+		case 'I':
+			// przyspieszenie w przód
+			tractorAcceleration += 0.05f;
+			if (tractorAcceleration > 0.2f) tractorAcceleration = 0.2f; // ogranicz przyspieszenie
+			break;
+		case 'K':
+			// przyspieszenie w ty³ (lub hamowanie)
+			tractorAcceleration -= 0.05f;
+			if (tractorAcceleration < -0.1f) tractorAcceleration = -0.1f; // ogranicz prêdkoœæ do ty³u
+			break;
+		case 'J':
+			// skrêæ w lewo
+			// skrêcanie zale¿ne od prêdkoœci: im szybciej jedziesz, tym mniejszy skuteczny skrêt
+			// im wolniejsza jazda, tym ³atwiej skrêciæ
+		{
+			float speedFactor = 1.0f - (fabs(tractorSpeedForward) / maxSpeed);
+			if (speedFactor < 0.3f) speedFactor = 0.3f; // minimalny skrêt
+			tractorYaw -= turnSpeed * speedFactor;
+		}
+		break;
+		case 'L':
+			// skrêæ w prawo
+		{
+			float speedFactor = 1.0f - (fabs(tractorSpeedForward) / maxSpeed);
+			if (speedFactor < 0.3f) speedFactor = 0.3f;
+			tractorYaw += turnSpeed * speedFactor;
+		}
+		break;
+
+		updateCameraDirection();
+		InvalidateRect(hWnd, NULL, FALSE);
 	}
+	break;
+
+	case WM_PALETTECHANGED:
+		if ((hPalette != NULL) && ((HWND)wParam != hWnd))
+		{
+			SelectPalette(hDC, hPalette, FALSE);
+			RealizePalette(hDC);
+			UpdateColors(hDC);
+			return 0;
+		}
+		break;
+
+	case WM_COMMAND:
+	{
+		switch (LOWORD(wParam))
+		{
+		case ID_FILE_EXIT:
+			DestroyWindow(hWnd);
+			break;
+		case ID_HELP_ABOUT:
+			DialogBox(hInstance,
+				MAKEINTRESOURCE(IDD_DIALOG_ABOUT),
+				hWnd,
+				AboutDlgProc);
+			break;
+		}
+	}
+	break;
+
+	default:
+		return (DefWindowProc(hWnd, message, wParam, lParam));
+	}
+
+	return (0L);
+}
+
+BOOL APIENTRY AboutDlgProc(HWND hDlg, UINT message, UINT wParam, LONG lParam)
+{
+	switch (message)
+	{
+	case WM_INITDIALOG:
+	{
+		int i;
+		GLenum glError;
+		SetDlgItemText(hDlg, IDC_OPENGL_VENDOR, (LPCSTR)glGetString(GL_VENDOR));
+		SetDlgItemText(hDlg, IDC_OPENGL_RENDERER, (LPCSTR)glGetString(GL_RENDERER));
+		SetDlgItemText(hDlg, IDC_OPENGL_VERSION, (LPCSTR)glGetString(GL_VERSION));
+		SetDlgItemText(hDlg, IDC_OPENGL_EXTENSIONS, (LPCSTR)glGetString(GL_EXTENSIONS));
+		SetDlgItemText(hDlg, IDC_GLU_VERSION, (LPCSTR)gluGetString(GLU_VERSION));
+		SetDlgItemText(hDlg, IDC_GLU_EXTENSIONS, (LPCSTR)gluGetString(GLU_EXTENSIONS));
+
+		i = 0;
+		do {
+			glError = glGetError();
+			SetDlgItemText(hDlg, IDC_ERROR1 + i, (LPCSTR)gluErrorString(glError));
+			i++;
+		} while (i < 6 && glError != GL_NO_ERROR);
+
+		return (TRUE);
+	}
+	break;
+
+	case WM_COMMAND:
+		if (LOWORD(wParam) == IDOK)
+			EndDialog(hDlg, TRUE);
+		break;
+
+	case WM_CLOSE:
+		EndDialog(hDlg, TRUE);
+		break;
+	}
+	return FALSE;
+}
