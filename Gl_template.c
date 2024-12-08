@@ -52,6 +52,11 @@ static GLfloat yRot = 0.0f;
 static GLfloat xs = 0.0f;
 static GLfloat ys = 0.0f;
 
+static GLfloat eyeX = 0.0f, eyeY = 0.0f, eyeZ = 5.0f; // Pozycja kamery (z dala od œrodka sceny)
+static GLfloat centerX = 0.0f, centerY = 0.0f, centerZ = 0.0f; // Punkt, na który patrzy kamera
+static GLfloat upX = 0.0f, upY = 1.0f, upZ = 0.0f; // Wektor "do góry"
+float speed = 1.0f;
+
 static GLsizei lastHeight;
 static GLsizei lastWidth;
 
@@ -791,10 +796,14 @@ void RenderScene(void)
 	// Clear the window with current clearing color
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	
 	// Save the matrix state and do the rotations
-	glPushMatrix();
-	glRotatef(xRot, 1.0f, 0.0f, 0.0f);
-	glRotatef(yRot, 0.0f, 1.0f, 0.0f);
+	glMatrixMode(GL_MODELVIEW); // Prze³¹cz na macierz modelu-widoku
+	glLoadIdentity(); // Zresetuj macierz
+	//glPushMatrix();
+	/*glRotatef(xRot, 1.0f, 0.0f, 0.0f);
+	glRotatef(yRot, 0.0f, 1.0f, 0.0f);*/
+	gluLookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
 
 	/////////////////////////////////////////////////////////////////
 	// MIEJSCE NA KOD OPENGL DO TWORZENIA WLASNYCH SCEN:		   //
@@ -1377,6 +1386,30 @@ LRESULT CALLBACK WndProc(       HWND    hWnd,
 
 			if(wParam == VK_RIGHT)
 				yRot += 5.0f;
+			if (wParam == 'W') {
+				eyeZ -= speed;
+				centerZ -= speed;
+			}
+			if (wParam == 'S') {
+				eyeZ += speed;
+				centerZ += speed;
+			}
+			if (wParam == 'A') {
+				eyeX -= speed;
+				centerX -= speed;
+			}
+			if (wParam == 'D') {
+				eyeX += speed;
+				centerX += speed;
+			}
+			if (wParam == 'Q') {
+				eyeY += speed;
+				centerY += speed;
+			}
+			if (wParam == 'E') {
+				eyeY -= speed;
+				centerY -= speed;
+			}
 
 			xRot = (const int)xRot % 360;
 			yRot = (const int)yRot % 360;
