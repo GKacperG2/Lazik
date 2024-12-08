@@ -12,7 +12,7 @@
 #  pragma comment(lib, "glu32.lib")     // Link libraries
 #endif
 
-
+//xDDDDDDDDDDDDDDDDDDDDDDDDDddd
 
 
 // Ustalanie trybu tekstowego:
