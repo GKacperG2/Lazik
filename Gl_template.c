@@ -1,4 +1,4 @@
-// Gl_template.c
+// Gl_template.c 
 #define  _CRT_SECURE_NO_WARNINGS
 #define M_PI 3.141592653589793238462643
 
@@ -38,19 +38,6 @@ static GLsizei lastWidth;
 BITMAPINFOHEADER	bitmapInfoHeader;
 unsigned char* bitmapData;
 unsigned int		texture[2];
-
-// Zmienne dla traktora i sterowania
-static float tractorX = 0.0f;
-static float tractorZ = 0.0f;
-static float tractorY = 0.0f;
-static float tractorYaw = 0.0f;
-static float tractorPitch = 0.0f;
-static float tractorRoll = 0.0f;
-static float tractorSpeedForward = 0.0f;
-static float tractorAcceleration = 0.0f;
-static float maxSpeed = 1.0f;
-static float friction = 0.01f;
-static float turnSpeed = 2.0f;
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 BOOL CALLBACK AboutDlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
@@ -184,327 +171,20 @@ unsigned char* LoadBitmapFile(char* filename, BITMAPINFOHEADER* bitmapInfoHeader
 	return bitmapImage;
 }
 
-// Delikatnie faluj¹cy teren
-float getTerrainHeight(float x, float z) {
-	// Mniejsze falowanie, amplitude 0.5f, freq 0.05f
-	return -5.0f + sinf(x * 0.05f) * cosf(z * 0.05f) * 0.5f;
-}
-
-void prostopadloscian(double a, double b, double offsetX, double offsetY, double offsetZ) {
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		for (float x = -10; x <= 20 + 75; x += 0.1) {
-			glColor3f(0.8, 0.0, 1);
-			glVertex3d(x + offsetX, 0 + offsetY, z + offsetZ);
-			glVertex3d(x + offsetX, 0 + offsetY, z + 0.1 + offsetZ);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 1.0, 0.0);
-		for (float x = -10; x <= 20 + 75; x += 0.1) {
-			glVertex3d(x + offsetX, z + offsetY, 0 + offsetZ);
-			glVertex3d(x + offsetX, z + 0.1 + offsetY, 0 + offsetZ);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3d(0.8, 0.0, 0);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glVertex3d(-10 + offsetX, z + offsetY, x + offsetZ);
-			glVertex3d(-10 + offsetX, z + 0.1 + offsetY, x + offsetZ);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 0.0);
-		for (float x = -10; x <= 20 + 75; x += 0.1) {
-			glVertex3d(x + offsetX, 20 + offsetY, z + offsetZ);
-			glVertex3d(x + offsetX, 20 + offsetY, z + 0.1 + offsetZ);
-		}
-		glEnd();
-	}
-
-	for (float x = -10; x <= 20 + 75; x += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(0.0, 1.0, 0.0);
-		for (float y = 0; y <= 20; y += 0.1) {
-			glVertex3d(x + offsetX, y + offsetY, 20 + offsetZ);
-			glVertex3d(x + 0.1 + offsetX, y + offsetY, 20 + offsetZ);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3d(0.8, 0.0, 0);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glVertex3d(95 + offsetX, z + offsetY, x + offsetZ);
-			glVertex3d(95 + offsetX, z + 0.1 + offsetY, x + offsetZ);
-		}
-		glEnd();
-	}
-}
-void prostopadloscian1(double a, double b, double offsetX, double offsetY, double offsetZ) {
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glColor3f(0.8, 0.0, 1);
-			glVertex3d(x + offsetX, 0 + offsetY, z + offsetZ);
-			glVertex3d(x + offsetX, 0 + offsetY, z + 0.1 + offsetZ);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 1.0, 0.0);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glVertex3d(x + offsetX, z + offsetY, 0 + offsetZ);
-			glVertex3d(x + offsetX, z + 0.1 + offsetY, 0 + offsetZ);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3d(0.8, 0.0, 0);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glVertex3d(0 + offsetX, z + offsetY, x + offsetZ);
-			glVertex3d(0 + offsetX, z + 0.1 + offsetY, x + offsetZ);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(1.0, 0.0, 0.0);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glVertex3d(x + offsetX, 20 + offsetY, z + offsetZ);
-			glVertex3d(x + offsetX, 20 + offsetY, z + 0.1 + offsetZ);
-		}
-		glEnd();
-	}
-
-	for (float x = 0; x <= 20; x += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3f(0.0, 1.0, 0.0);
-		for (float y = 0; y <= 20; y += 0.1) {
-			glVertex3d(x + offsetX, y + offsetY, 20 + offsetZ);
-			glVertex3d(x + 0.1 + offsetX, y + offsetY, 20 + offsetZ);
-		}
-		glEnd();
-	}
-
-	for (float z = 0; z <= 20; z += 0.1) {
-		glBegin(GL_TRIANGLE_STRIP);
-		glColor3d(0.8, 0.0, 0);
-		for (float x = 0; x <= 20; x += 0.1) {
-			glVertex3d(20 + offsetX, z + offsetY, x + offsetZ);
-			glVertex3d(20 + offsetX, z + 0.1 + offsetY, x + offsetZ);
-		}
-		glEnd();
-	}
-}
-void felga(double r, double h, double offsetX, double offsetY, double offsetZ) {
-	const double PI = 3.14;
-	double x, y, alpha;
-
-	// Podstawa dolna
-	glBegin(GL_TRIANGLE_FAN);
-	glColor3d(0.8, 1.0, 0.0);
-	glVertex3d(offsetX, offsetY, offsetZ); // Œrodek podstawy dolnej
-	for (alpha = 0; alpha <= 2 * PI; alpha += PI / 128.0) {
-		x = r * sin(alpha) + offsetX;
-		y = r * cos(alpha) + offsetY;
-		glVertex3d(x, y, offsetZ);
-	}
-	glEnd();
-
-	// Œciany boczne
-	glBegin(GL_QUAD_STRIP);
-	for (alpha = 0.0; alpha <= 2 * PI; alpha += PI / 128.0) {
-		x = r * sin(alpha) + offsetX;
-		y = r * cos(alpha) + offsetY;
-		glVertex3d(x, y, offsetZ);         // Punkt na dolnej podstawie
-		glVertex3d(x, y, offsetZ + h);     // Punkt na górnej podstawie
-	}
-	glEnd();
-
-	// Podstawa górna
-	glBegin(GL_TRIANGLE_FAN);
-	glColor3d(0.8, 1.0, 0.0);
-	glVertex3d(offsetX, offsetY, offsetZ + h); // Œrodek podstawy górnej
-	for (alpha = 0; alpha <= 2 * PI; alpha += PI / 128.0) {
-		x = r * sin(alpha) + offsetX;
-		y = r * cos(alpha) + offsetY;
-		glVertex3d(x, y, offsetZ + h);
-	}
-	glEnd();
-}
-
-void walec(double r, double h, double offsetX, double offsetY, double offsetZ) {
-	const double PI = 3.14;
-	double x, y, alpha;
-
-	// Podstawa dolna
-	glBegin(GL_TRIANGLE_FAN);
-	glColor3d(0.8, 0.0, 0.0);
-	glVertex3d(offsetX, offsetY, offsetZ); // Œrodek podstawy dolnej
-	for (alpha = 0; alpha <= 2 * PI; alpha += PI / 128.0) {
-		x = r * sin(alpha) + offsetX;
-		y = r * cos(alpha) + offsetY;
-		glVertex3d(x, y, offsetZ);
-	}
-	glEnd();
-
-	// Œciany boczne
-	glBegin(GL_QUAD_STRIP);
-	for (alpha = 0.0; alpha <= 2 * PI; alpha += PI / 128.0) {
-		x = r * sin(alpha) + offsetX;
-		y = r * cos(alpha) + offsetY;
-		glVertex3d(x, y, offsetZ);         // Punkt na dolnej podstawie
-		glVertex3d(x, y, offsetZ + h);     // Punkt na górnej podstawie
-	}
-	glEnd();
-
-	// Podstawa górna
-	glBegin(GL_TRIANGLE_FAN);
-	glColor3d(0.8, 0.0, 0.0);
-	glVertex3d(offsetX, offsetY, offsetZ + h); // Œrodek podstawy górnej
-	for (alpha = 0; alpha <= 2 * PI; alpha += PI / 128.0) {
-		x = r * sin(alpha) + offsetX;
-		y = r * cos(alpha) + offsetY;
-		glVertex3d(x, y, offsetZ + h);
-	}
-	glEnd();
-}
-
-void drawTerrain(int size, float scale) {
-	float halfSize = (float)size / 2.0f;
-
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+// Funkcja rysuj¹ca p³aski teren (du¿y kwadrat)
+void drawFlatTerrain() {
 	glColor3f(0.2f, 0.8f, 0.2f);
-	for (int z = 0; z < size; ++z) {
-		glBegin(GL_TRIANGLE_STRIP);
-		for (int x = 0; x <= size; ++x) {
-			float worldX = (x - halfSize) * scale;
-			float worldZ = (z - halfSize) * scale;
-			float worldZNext = ((z + 1) - halfSize) * scale;
-
-			float height1 = getTerrainHeight(worldX, worldZ);
-			float height2 = getTerrainHeight(worldX, worldZNext);
-
-			glVertex3f(worldX, height1, worldZ);
-			glVertex3f(worldX, height2, worldZNext);
-		}
-		glEnd();
-	}
-
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	glColor3f(0.0f, 0.0f, 0.0f);
-	for (int z = 0; z < size; ++z) {
-		glBegin(GL_TRIANGLE_STRIP);
-		for (int x = 0; x <= size; ++x) {
-			float worldX = (x - halfSize) * scale;
-			float worldZ = (z - halfSize) * scale;
-			float worldZNext = ((z + 1) - halfSize) * scale;
-
-			float height1 = getTerrainHeight(worldX, worldZ);
-			float height2 = getTerrainHeight(worldX, worldZNext);
-
-			glVertex3f(worldX, height1, worldZ);
-			glVertex3f(worldX, height2, worldZNext);
-		}
-		glEnd();
-	}
-
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-}
-
-void drawTractor() {
-	glPushMatrix();
-
-	glTranslatef(tractorX, tractorY, tractorZ);
-	glRotatef(tractorYaw, 0.0f, 1.0f, 0.0f);
-	glRotatef(tractorRoll * 180.0f / (float)M_PI, 0.0f, 0.0f, 1.0f);
-	glRotatef(tractorPitch * 180.0f / (float)M_PI, 1.0f, 0.0f, 0.0f);
-
-	glScalef(0.1f, 0.1f, 0.1f);
-
-	prostopadloscian1(10, 10, 0, 20, 20);
-	prostopadloscian(10, 10, 0, 0, 20);
-
-	walec(10, 10, 0, 0, 0);
-	walec(10, 10, 0, 0, 50);
-	walec(2.5f, 40.0f, 0, 0, 10);
-	walec(2.5f, 40.0f, 90, 0, 10);
-	walec(8, 10, 90, 0, 0);
-	walec(8, 10, 90, 0, 50);
-
-	felga(8, 2, 0, 0, -2);
-	felga(8, 2, 0, 0, 60);
-	felga(6, 2, 90, 0, -2);
-	felga(6, 2, 90, 0, 60);
-
-	glPopMatrix();
-}
-
-void updateTractor() {
-	// zastosuj przyspieszenie
-	tractorSpeedForward += tractorAcceleration;
-	if (tractorSpeedForward > maxSpeed) tractorSpeedForward = maxSpeed;
-	if (tractorSpeedForward < -0.3f) tractorSpeedForward = -0.3f;
-
-	// tarcie
-	if (fabsf(tractorAcceleration) < 0.0001f) {
-		if (tractorSpeedForward > 0.0f) {
-			tractorSpeedForward -= friction;
-			if (tractorSpeedForward < 0.0f) tractorSpeedForward = 0.0f;
-		}
-		else if (tractorSpeedForward < 0.0f) {
-			tractorSpeedForward += friction;
-			if (tractorSpeedForward > 0.0f) tractorSpeedForward = 0.0f;
-		}
-	}
-
-	// zerowanie przyspieszenia po klatce
-	tractorAcceleration = 0.0f;
-
-	float dirX = cosf(tractorYaw * (float)M_PI / 180.0f);
-	float dirZ = sinf(tractorYaw * (float)M_PI / 180.0f);
-
-	tractorX += dirX * tractorSpeedForward;
-	tractorZ += dirZ * tractorSpeedForward;
-
-	float baseHeight = 0.5f;
-	float terrainHeight = getTerrainHeight(tractorX, tractorZ);
-	tractorY = terrainHeight + baseHeight;
-
-	float frontHeight = getTerrainHeight(tractorX + dirX, tractorZ + dirZ);
-	float backHeight = getTerrainHeight(tractorX - dirX, tractorZ - dirZ);
-	float dzForward = frontHeight - backHeight;
-	tractorPitch = atan2f(dzForward, 2.0f);
-
-	float rightX = cosf((tractorYaw + 90.0f) * (float)M_PI / 180.0f);
-	float rightZ = sinf((tractorYaw + 90.0f) * (float)M_PI / 180.0f);
-
-	float rightHeight = getTerrainHeight(tractorX + rightX, tractorZ + rightZ);
-	float leftHeight = getTerrainHeight(tractorX - rightX, tractorZ - rightZ);
-
-	float dzRight = rightHeight - leftHeight;
-	tractorRoll = atan2f(dzRight, 2.0f);
+	glBegin(GL_QUADS);
+	glVertex3f(-100.0f, 0.0f, -100.0f);
+	glVertex3f(100.0f, 0.0f, -100.0f);
+	glVertex3f(100.0f, 0.0f, 100.0f);
+	glVertex3f(-100.0f, 0.0f, 100.0f);
+	glEnd();
 }
 
 // Funkcja rysuj¹ca budynek
 void drawBuilding(float posX, float posZ) {
-	float h = getTerrainHeight(posX, posZ);
+	float h = 0.0f; // teren jest p³aski
 	glPushMatrix();
 	glTranslatef(posX, h, posZ);
 
@@ -548,11 +228,10 @@ void drawBuilding(float posX, float posZ) {
 
 // Funkcja rysuj¹ca drzewo (pieñ pionowy)
 void drawTree(float posX, float posZ) {
-	float h = getTerrainHeight(posX, posZ);
+	float h = 0.0f; // p³aski teren
 	glPushMatrix();
 	glTranslatef(posX, h, posZ);
 
-	// Obrót, aby pieñ by³ wzd³u¿ osi Y
 	glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
 
 	// Pieñ - walec
@@ -578,17 +257,14 @@ void RenderScene(void)
 
 	gluLookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
 
-	updateTractor();
-
-	drawTerrain(300, 0.5f);
+	// Rysowanie p³askiego terenu
+	drawFlatTerrain();
 
 	// Rysowanie budynku
 	drawBuilding(10.0f, 10.0f);
 
 	// Rysowanie drzewa
 	drawTree(-10.0f, 5.0f);
-
-	drawTractor();
 
 	glMatrixMode(GL_MODELVIEW);
 	glFlush();
@@ -849,30 +525,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			pitch -= sensitivity;
 			if (pitch < -89.0f) pitch = -89.0f;
 			break;
-
-			// Sterowanie traktorem
-		case 'I':
-			tractorAcceleration += 0.05f;
-			if (tractorAcceleration > 0.2f) tractorAcceleration = 0.2f;
-			break;
-		case 'K':
-			tractorAcceleration -= 0.05f;
-			if (tractorAcceleration < -0.1f) tractorAcceleration = -0.1f;
-			break;
-		case 'J':
-		{
-			float speedFactor = 1.0f - (fabsf(tractorSpeedForward) / maxSpeed);
-			if (speedFactor < 0.3f) speedFactor = 0.3f;
-			tractorYaw -= turnSpeed * speedFactor;
-		}
-		break;
-		case 'L':
-		{
-			float speedFactor = 1.0f - (fabsf(tractorSpeedForward) / maxSpeed);
-			if (speedFactor < 0.3f) speedFactor = 0.3f;
-			tractorYaw += turnSpeed * speedFactor;
-		}
-		break;
 		}
 
 		updateCameraDirection();
