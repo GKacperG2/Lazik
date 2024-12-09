@@ -263,6 +263,8 @@ void RenderScene(void)
 	// Rysowanie budynku
 	drawBuilding(10.0f, 10.0f);
 
+	drawTractor();
+
 	// Rysowanie drzewa
 	drawTree(-10.0f, 5.0f);
 
