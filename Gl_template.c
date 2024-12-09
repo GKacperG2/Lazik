@@ -267,7 +267,6 @@ void RenderScene(void)
 	drawTree(-10.0f, 5.0f);
 
 	glTranslatef(10.0f, 1.0f, 25.0f);
-	drawTractor();
 
 	glMatrixMode(GL_MODELVIEW);
 	glFlush();
