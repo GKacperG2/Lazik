@@ -570,6 +570,109 @@ void drawTree(float posX, float posZ) {
 	glPopMatrix();
 }
 
+void drawTerrainWithTexture(int size, float scale) {
+	float halfSize = (float)size / 2.0f;
+	glBindTexture(GL_TEXTURE_2D, texture[0]); // np. tekstura checker
+
+	for (int z = 0; z < size; ++z) {
+		glBegin(GL_TRIANGLE_STRIP);
+		for (int x = 0; x <= size; ++x) {
+			float worldX = (x - halfSize) * scale;
+			float worldZ = (z - halfSize) * scale;
+			float worldZNext = ((z + 1) - halfSize) * scale;
+
+			float height1 = getTerrainHeight(worldX, worldZ);
+			float height2 = getTerrainHeight(worldX, worldZNext);
+
+			float u = (float)x / (float)size;
+			float v = (float)z / (float)size;
+			float v_next = (float)(z + 1) / (float)size;
+
+			// Wierzcho³ek dolny (z)
+			glTexCoord2f(u, v);
+			glVertex3f(worldX, height1, worldZ);
+
+			// Wierzcho³ek górny (z+1)
+			glTexCoord2f(u, v_next);
+			glVertex3f(worldX, height2, worldZNext);
+		}
+		glEnd();
+	}
+}
+void drawBuildingWithTexture(float posX, float posZ) {
+	float h = getTerrainHeight(posX, posZ);
+	glPushMatrix();
+	glTranslatef(posX, h, posZ);
+
+	glBindTexture(GL_TEXTURE_2D, texture[1]); // np. tekstura crate
+	glColor3f(1.0f, 1.0f, 1.0f);
+
+	float size = 5.0f;
+	glBegin(GL_TRIANGLES);
+	// Ka¿da œciana to dwa trójk¹ty
+
+	// Góra (kwadrat podzielony na dwa trójk¹ty)
+	// Trójk¹t 1
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(-size, size, -size);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(size, size, -size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-size, size, size);
+
+	// Trójk¹t 2
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(size, size, -size);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(size, size, size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-size, size, size);
+
+	// Dó³
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(-size, 0.0f, -size);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(size, 0.0f, -size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-size, 0.0f, size);
+
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(size, 0.0f, -size);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(size, 0.0f, size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-size, 0.0f, size);
+
+	// Przód
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(-size, 0.0f, size);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(size, 0.0f, size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-size, size, size);
+
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(size, 0.0f, size);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(size, size, size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-size, size, size);
+
+	// Ty³
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(-size, 0.0f, -size);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(size, 0.0f, -size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-size, size, -size);
+
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(size, 0.0f, -size);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(size, size, -size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-size, size, -size);
+
+	// Lewa
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(-size, 0.0f, -size);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(-size, 0.0f, size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-size, size, -size);
+
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(-size, 0.0f, size);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(-size, size, size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-size, size, -size);
+
+	// Prawa
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(size, 0.0f, -size);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(size, 0.0f, size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(size, size, -size);
+
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(size, 0.0f, size);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(size, size, size);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(size, size, -size);
+
+	glEnd();
+
+	glPopMatrix();
+}
+
+
 void RenderScene(void)
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -578,21 +681,28 @@ void RenderScene(void)
 
 	gluLookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
 
+	glEnable(GL_TEXTURE_2D);
+
 	updateTractor();
 
-	drawTerrain(300, 0.5f);
+	// Rysowanie terenu z tekstur¹ (trójk¹ty)
+	drawTerrainWithTexture(300, 1.0f);
 
-	// Rysowanie budynku
-	drawBuilding(10.0f, 10.0f);
+	// Rysowanie budynku z tekstur¹ (tylko trójk¹ty)
+	drawBuildingWithTexture(10.0f, 10.0f);
 
-	// Rysowanie drzewa
+	// Rysowanie drzewa i traktora (mo¿esz je te¿ oteksturowaæ, dodaj¹c glTexCoord2f)
 	drawTree(-10.0f, 5.0f);
 
+	glTranslatef(10.0f, 1.0f, -10.0f);
 	drawTractor();
 
-	glMatrixMode(GL_MODELVIEW);
+	glDisable(GL_TEXTURE_2D);
+
 	glFlush();
 }
+
+
 
 
 void SetDCPixelFormat(HDC hDC)
