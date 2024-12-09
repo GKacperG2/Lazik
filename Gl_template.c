@@ -387,8 +387,9 @@ void walec(double r, double h, double offsetX, double offsetY, double offsetZ) {
 }
 
 void drawTerrain(int size, float scale) {
-	float halfSize = (float)size / 2.0f;
+	const float halfSize = size / 2.0f;
 
+	// Wype³nienie terenu
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glColor3f(0.2f, 0.8f, 0.2f);
 	for (int z = 0; z < size; ++z) {
@@ -407,6 +408,7 @@ void drawTerrain(int size, float scale) {
 		glEnd();
 	}
 
+	// Siatka terenu
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	glColor3f(0.0f, 0.0f, 0.0f);
 	for (int z = 0; z < size; ++z) {
