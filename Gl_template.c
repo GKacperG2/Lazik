@@ -282,6 +282,41 @@ void RenderScene(void)
 	glFlush();
 }
 
+//POCZATEK KOLIZJI
+typedef struct wspolrzedne
+{
+	float x_kol;
+	float y_kol;
+	float z_kol;
+}Wspolrzedne;
+Wspolrzedne polozenie_traktora = { 0.0, 0.0, 0.0}; 
+float promien_traktora = 10; float phrase = 0.1;
+
+float dystans_xy(Wspolrzedne object_a, Wspolrzedne object_b)
+{
+	return sqrt(pow((object_a.x_kol - object_b.x_kol), 2) + pow((object_a.y_kol - object_b.y_kol), 2));
+}
+
+int detekcja_kolizji(Wspolrzedne tractor)
+{
+	Wspolrzedne
+polozenia_przeszkod[1]; float
+promienie_przeszkod[1]; int
+ilosc_przeszkod = 1;
+
+	polozenia_przeszkod[0].x_kol = -10.0;
+	polozenia_przeszkod[0].y_kol = 5.0;
+	polozenia_przeszkod[0].z_kol = 0.0;
+	promienie_przeszkod[0] = 8;
+	for (int i = 0; i < ilosc_przeszkod; i++)
+	{
+		if (dystans_xy(tractor, polozenia_przeszkod[i]) <=
+			(promien_traktora + promienie_przeszkod[i]))
+			return 1;
+	}
+	return 0;
+}
+//KONIEC KOLIZJI
 
 void SetDCPixelFormat(HDC hDC)
 {
