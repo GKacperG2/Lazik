@@ -344,33 +344,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             pitch -= sensitivity;
             if (pitch < -89.0f) pitch = -89.0f;
             break;
-        case 'T': // Do przodu
-        {
-            float angleRad = (tractorAngle + 90.0f) * (float)M_PI / 180.0f;
-            tractorX += sinf(angleRad) * tractorSpeed;
-            tractorZ += cosf(angleRad) * tractorSpeed;
         }
-        break;
-
-        case 'G': // Do tyłu
-        {
-            float angleRad = (tractorAngle + 90.0f) * (float)M_PI / 180.0f;
-            tractorX -= sinf(angleRad) * tractorSpeed;
-            tractorZ -= cosf(angleRad) * tractorSpeed;
-        }
-        break;
-        case 'F': // Obrót w lewo
-            tractorAngle += tractorRotSpeed;
-            InvalidateRect(hWnd, NULL, FALSE);
-            break;
-
-        case 'H': // Obrót w prawo
-            tractorAngle -= tractorRotSpeed;
-            InvalidateRect(hWnd, NULL, FALSE);
-            break;
-        }
-        }
-
 
         updateCameraDirection();
         InvalidateRect(hWnd, NULL, FALSE);
@@ -656,6 +630,12 @@ void RenderScene()
     // [1] Włącz teksturowanie
     glEnable(GL_TEXTURE_2D);
 
+    // [2] Narysuj traktor, który SAM wybierze
+    //     kiedy użyć texture[0], a kiedy texture[1].
+    //     (Patrz zmodyfikowana funkcja drawTractor() niżej)
+    glBindTexture(GL_TEXTURE_2D, texture[0]);
+    glColor3f(1.0f, 1.0f, 1.0f);
+    drawTractor();
 
     // [3] Wyłącz teksturowanie i narysuj resztę
     glDisable(GL_TEXTURE_2D);
@@ -672,12 +652,5 @@ void RenderScene()
     glColor3f(0.5f, 0.3f, 0.1f);
     drawTree(-10.0f, 5.0f);
 
-    // [2] Narysuj traktor, który SAM wybierze
-    //     kiedy użyć texture[0], a kiedy texture[1].
-    //     (Patrz zmodyfikowana funkcja drawTractor() niżej)
-    glBindTexture(GL_TEXTURE_2D, texture[0]);
-    glColor3f(1.0f, 1.0f, 1.0f);
-
-    drawTractor();
     // itd.
 }
