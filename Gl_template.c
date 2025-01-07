@@ -19,6 +19,14 @@
 // --- STAŁE i ZMIENNE GLOBALNE ---
 HPALETTE hPalette = NULL;
 
+
+static float tractorX = 10.0f;      // Pocz�tkowa pozycja traktora X
+static float tractorZ = 25.0f;      // Pocz�tkowa pozycja traktora Z
+static float tractorAngle = 0.0f;   // K�t obrotu traktora (w stopniach)
+static float tractorSpeed = 0.5f;   // Pr�dko�� jazdy prz�d/ty�sssssss
+static float tractorRotSpeed = 2.0f; // Pr�dko�� obrotu w lewo/prawo
+
+
 static LPCTSTR lpszAppName = TEXT("GL Template");
 static HINSTANCE hInstance;
 
