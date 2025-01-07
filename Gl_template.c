@@ -20,6 +20,13 @@
 
 HPALETTE hPalette = NULL;
 
+static float tractorX = 10.0f;      // Pocz¹tkowa pozycja traktora X
+static float tractorZ = 25.0f;      // Pocz¹tkowa pozycja traktora Z
+static float tractorAngle = 0.0f;   // K¹t obrotu traktora (w stopniach)
+static float tractorSpeed = 0.5f;   // Prêdkoœæ jazdy przód/ty³
+static float tractorRotSpeed = 2.0f; // Prêdkoœæ obrotu w lewo/prawo
+
+
 static LPCTSTR lpszAppName = TEXT("GL Template");
 static HINSTANCE hInstance;
 
@@ -248,10 +255,6 @@ void drawTree(float posX, float posZ) {
 	gluDeleteQuadric(quad);
 	glPopMatrix();
 }
-float tractorX = 0.0f, tractorY = 0.0f, tractorZ = 0.0f;
-
-
-
 
 void RenderScene(void)
 {
@@ -267,16 +270,14 @@ void RenderScene(void)
 	// Rysowanie budynku
 	drawBuilding(10.0f, 10.0f);
 
-	glPushMatrix();
-	drawTractor();
-	glPopMatrix();
-
 	// Rysowanie drzewa
-
-	glPushMatrix();
 	drawTree(-10.0f, 5.0f);
-	glTranslatef(10.0f, 1.0f, 25.0f);
-	glPopMatrix();
+
+	glTranslatef(tractorX, 1.0f, tractorZ);
+
+	// Obrót wokó³ osi Y (skala w stopniach)
+	glRotatef(tractorAngle, 0.0f, 1.0f, 0.0f);
+	drawTractor();
 
 	glMatrixMode(GL_MODELVIEW);
 	glFlush();
@@ -536,6 +537,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		case VK_DOWN:
 			pitch -= sensitivity;
 			if (pitch < -89.0f) pitch = -89.0f;
+			break;
+		case 'T': // Do przodu
+		{
+			float angleRad = (tractorAngle + 90.0f) * (float)M_PI / 180.0f;
+			tractorX += sinf(angleRad) * tractorSpeed;
+			tractorZ += cosf(angleRad) * tractorSpeed;
+		}
+		break;
+
+		case 'G': // Do ty³u
+		{
+			float angleRad = (tractorAngle + 90.0f) * (float)M_PI / 180.0f;
+			tractorX -= sinf(angleRad) * tractorSpeed;
+			tractorZ -= cosf(angleRad) * tractorSpeed;
+		}
+		break;
+		case 'F': // Obrót w lewo
+			tractorAngle += tractorRotSpeed;
+			InvalidateRect(hWnd, NULL, FALSE);
+			break;
+
+		case 'H': // Obrót w prawo
+			tractorAngle -= tractorRotSpeed;
+			InvalidateRect(hWnd, NULL, FALSE);
 			break;
 		}
 
