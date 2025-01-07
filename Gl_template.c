@@ -23,7 +23,7 @@ HPALETTE hPalette = NULL;
 static float tractorX = 10.0f;      // Pocz¹tkowa pozycja traktora X
 static float tractorZ = 25.0f;      // Pocz¹tkowa pozycja traktora Z
 static float tractorAngle = 0.0f;   // K¹t obrotu traktora (w stopniach)
-static float tractorSpeed = 0.5f;   // Prêdkoœæ jazdy przód/ty³
+static float tractorSpeed = 0.5f;   // Prêdkoœæ jazdy przód/ty³sssssss
 static float tractorRotSpeed = 2.0f; // Prêdkoœæ obrotu w lewo/prawo
 
 
