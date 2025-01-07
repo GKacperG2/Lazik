@@ -248,6 +248,10 @@ void drawTree(float posX, float posZ) {
 	gluDeleteQuadric(quad);
 	glPopMatrix();
 }
+float tractorX = 0.0f, tractorY = 0.0f, tractorZ = 0.0f;
+
+
+
 
 void RenderScene(void)
 {
@@ -263,12 +267,16 @@ void RenderScene(void)
 	// Rysowanie budynku
 	drawBuilding(10.0f, 10.0f);
 
+	glPushMatrix();
 	drawTractor();
+	glPopMatrix();
 
 	// Rysowanie drzewa
-	drawTree(-10.0f, 5.0f);
 
+	glPushMatrix();
+	drawTree(-10.0f, 5.0f);
 	glTranslatef(10.0f, 1.0f, 25.0f);
+	glPopMatrix();
 
 	glMatrixMode(GL_MODELVIEW);
 	glFlush();
