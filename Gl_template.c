@@ -300,8 +300,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         float rightX = cosf((yaw - 90.0f) * (float)M_PI / 180.0f);
         float rightZ = sinf((yaw - 90.0f) * (float)M_PI / 180.0f);
 
-        switch (wParam)
-        {
+        switch (wParam) {
+            // Kamera
         case 'W':
             eyeX += frontX * speed;
             eyeY += frontY * speed;
@@ -326,8 +326,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         case 'E':
             eyeY -= speed;
             break;
-
-            // Obrót kamery strzałkami
         case VK_LEFT:
             yaw -= sensitivity;
             break;
@@ -342,12 +340,36 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             pitch -= sensitivity;
             if (pitch < -89.0f) pitch = -89.0f;
             break;
+        case 'T': // Do przodu
+        {
+            float angleRad = (tractorAngle + 90.0f) * (float)M_PI / 180.0f;
+            tractorX += sinf(angleRad) * tractorSpeed;
+            tractorZ += cosf(angleRad) * tractorSpeed;
+        }
+        break;
+
+        case 'G': // Do tyłu
+        {
+            float angleRad = (tractorAngle + 90.0f) * (float)M_PI / 180.0f;
+            tractorX -= sinf(angleRad) * tractorSpeed;
+            tractorZ -= cosf(angleRad) * tractorSpeed;
+        }
+        break;
+        case 'F': // Obrót w lewo
+            tractorAngle += tractorRotSpeed;
+            InvalidateRect(hWnd, NULL, FALSE);
+            break;
+
+        case 'H': // Obrót w prawo
+            tractorAngle -= tractorRotSpeed;
+            InvalidateRect(hWnd, NULL, FALSE);
+            break;
         }
 
         updateCameraDirection();
         InvalidateRect(hWnd, NULL, FALSE);
-        break;
     }
+    break;
 
     case WM_COMMAND:
         switch (LOWORD(wParam))
