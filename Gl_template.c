@@ -299,43 +299,74 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
     case WM_KEYDOWN:
     {
-        switch (wParam)
-        {
-        case 'T':
-        {
-            float angleRad = tractorAngle * M_PI / 180.0f;
-            tractorX += cosf(angleRad) * tractorSpeed;
-            tractorZ += sinf(angleRad) * tractorSpeed;
-        }
+
+
+    case 'T': // Forward
+    {
+        float angleRad = tractorAngle * M_PI / 180.0f;
+        tractorX += cosf(angleRad) * tractorSpeed;
+        tractorZ += sinf(angleRad) * tractorSpeed;
+    }
+    break;
+    case 'G': // Backward
+    {
+        float angleRad = tractorAngle * M_PI / 180.0f;
+        tractorX -= cosf(angleRad) * tractorSpeed;
+        tractorZ -= sinf(angleRad) * tractorSpeed;
+    }
+    break;
+    case 'F': // Rotate Left
+        tractorAngle += tractorRotSpeed;
+        break;
+    case 'H': // Rotate Right
+        tractorAngle -= tractorRotSpeed;
         break;
 
-        case 'G':
-        {
-            float angleRad = tractorAngle * M_PI / 180.0f;
-            tractorX -= cosf(angleRad) * tractorSpeed;
-            tractorZ -= sinf(angleRad) * tractorSpeed;
-        }
+    case VK_LEFT:
+        yaw -= sensitivity;
         break;
-
-        case 'F':
-            tractorAngle += tractorRotSpeed;
-            break;
-
-        case 'H':
-            tractorAngle -= tractorRotSpeed;
-            break;
-        }
-
-        InvalidateRect(hWnd, NULL, FALSE);
+    case VK_RIGHT:
+        yaw += sensitivity;
+        break;
+    case VK_UP:
+        pitch += sensitivity;
+        if (pitch > 89.0f) pitch = 89.0f;
+        break;
+    case VK_DOWN:
+        pitch -= sensitivity;
+        if (pitch < -89.0f) pitch = -89.0f;
         break;
     }
+    updateCameraDirection();
+
+
+
+
+
+    InvalidateRect(hWnd, NULL, FALSE);
+    break;
+
 
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
-    }
 
-    return 0L;
+
+        return 0L;
+    }
 }
+
+void updateCameraDirection()
+{
+    float frontX = cosf(yaw * M_PI / 180.0f) * cosf(pitch * M_PI / 180.0f);
+    float frontY = sinf(pitch * M_PI / 180.0f);
+    float frontZ = sinf(yaw * M_PI / 180.0f) * cosf(pitch * M_PI / 180.0f);
+
+    centerX = eyeX + frontX;
+    centerY = eyeY + frontY;
+    centerZ = eyeZ + frontZ;
+}
+
+
 
 void SetupRC()
 {
@@ -432,6 +463,7 @@ void RenderScene()
     drawTractor();
     glDisable(GL_TEXTURE_2D);
 }
+
 
 void ChangeSize(GLsizei w, GLsizei h)
 {
