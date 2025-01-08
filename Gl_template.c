@@ -36,6 +36,12 @@ static float yaw = -90.0f;
 static float pitch = 0.0f;
 static float sensitivity = 2.0f;
 
+static float tractorX = 10.0f;      // Początkowa pozycja traktora X
+static float tractorZ = 25.0f;      // Początkowa pozycja traktora Z
+static float tractorAngle = 0.0f;   // Kąt obrotu traktora (w stopniach)
+static float tractorSpeed = 0.5f;   // Prędkość jazdy przód/tył
+static float tractorRotSpeed = 2.0f; // Prędkość obrotu w lewo/prawo
+
 static GLsizei lastHeight;
 static GLsizei lastWidth;
 
