@@ -664,7 +664,7 @@ void RenderScene()
 
     // [2] Narysuj traktor, który SAM wybierze
     //     kiedy użyć texture[0], a kiedy texture[1].
-    //     (Patrz zmodyfikowana funkcja drawTractor() niżej)
+    //     (Patrz zmodyfikowana funkcja drawTractor() niżej)sss
     glTranslatef(tractorX, 1.0f, tractorZ);
 
     // Obrót wokół osi Y (skala w stopniach)
