@@ -175,41 +175,23 @@ unsigned char* LoadBitmapFile(const char* filename, BITMAPINFOHEADER* bitmapInfo
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
     MSG msg;
-    WNDCLASS wc;
+    WNDCLASS wc = { 0 };
     HWND hWnd;
 
-    hInstance = hInst;
-
     wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = (WNDPROC)WndProc;
-    wc.cbClsExtra = 0;
-    wc.cbWndExtra = 0;
-    wc.hInstance = hInstance;
-    wc.hIcon = NULL;
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInst;
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = NULL;
-    wc.lpszMenuName = MAKEINTRESOURCE(IDR_MENU);
-    wc.lpszClassName = lpszAppName;
+    wc.lpszClassName = "GLTemplate";
 
-    if (RegisterClass(&wc) == 0)
-        return FALSE;
+    if (!RegisterClass(&wc)) return FALSE;
 
-    hWnd = CreateWindow(
-        lpszAppName,
-        lpszAppName,
-        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
-        50, 50,
-        800, 600,
-        NULL,
-        NULL,
-        hInstance,
-        NULL
-    );
+    hWnd = CreateWindow("GLTemplate", "GL Template", WS_OVERLAPPEDWINDOW,
+        50, 50, 800, 600, NULL, NULL, hInst, NULL);
 
-    if (hWnd == NULL)
-        return FALSE;
+    if (!hWnd) return FALSE;
 
-    ShowWindow(hWnd, SW_SHOW);
+    ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
 
     while (GetMessage(&msg, NULL, 0, 0))
@@ -222,151 +204,104 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    static HGLRC hRC;
-    static HDC hDC;
-
     switch (message)
     {
-    case WM_CREATE:
-    {
-        hDC = GetDC(hWnd);
-        SetDCPixelFormat(hDC);
-        hPalette = GetOpenGLPalette(hDC);
-
-        hRC = wglCreateContext(hDC);
-        wglMakeCurrent(hDC, hRC);
-
-        SetupRC();
-        glGenTextures(2, texture);
-
-        bitmapData = LoadBitmapFile("metal.bmp", &bitmapInfoHeader);
-        if (bitmapData)
+    case WM_KEYDOWN:
+        switch (wParam)
         {
-            glBindTexture(GL_TEXTURE_2D, texture[0]);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                bitmapInfoHeader.biWidth,
-                bitmapInfoHeader.biHeight,
-                0, GL_RGB, GL_UNSIGNED_BYTE, bitmapData);
-            free(bitmapData);
-            bitmapData = NULL;
-            glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
+        case 'T': case 'G': case 'F': case 'H':
+            updateTractorPosition((char)wParam);
+            break;
+        case VK_LEFT:
+            yaw -= sensitivity;
+            break;
+        case VK_RIGHT:
+            yaw += sensitivity;
+            break;
+        case VK_UP:
+            pitch += sensitivity;
+            if (pitch > 89.0f) pitch = 89.0f;
+            break;
+        case VK_DOWN:
+            pitch -= sensitivity;
+            if (pitch < -89.0f) pitch = -89.0f;
+            break;
         }
-
-        bitmapData = LoadBitmapFile("takiecos.bmp", &bitmapInfoHeader);
-        if (bitmapData)
-        {
-            glBindTexture(GL_TEXTURE_2D, texture[1]);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-                bitmapInfoHeader.biWidth,
-                bitmapInfoHeader.biHeight,
-                0, GL_RGB, GL_UNSIGNED_BYTE, bitmapData);
-            free(bitmapData);
-            bitmapData = NULL;
-            glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
-        }
-
-        return 0;
-    }
-    case WM_DESTROY:
-        wglMakeCurrent(hDC, NULL);
-        wglDeleteContext(hRC);
-        if (hPalette)
-            DeleteObject(hPalette);
-        PostQuitMessage(0);
+        updateCameraDirection();
+        InvalidateRect(hWnd, NULL, FALSE);
         break;
 
     case WM_SIZE:
-        ChangeSize((GLsizei)LOWORD(lParam), (GLsizei)HIWORD(lParam));
+        ChangeSize(LOWORD(lParam), HIWORD(lParam));
         break;
 
     case WM_PAINT:
-    {
-        PAINTSTRUCT ps;
-        BeginPaint(hWnd, &ps);
         RenderScene();
-        SwapBuffers(hDC);
-        EndPaint(hWnd, &ps);
-        return 0;
+        SwapBuffers(GetDC(hWnd));
+        break;
+
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
     }
+    return 0;
+}
 
-    case WM_KEYDOWN:
+void updateCameraDirection()
+{
+    float radYaw = yaw * M_PI / 180.0f;
+    float radPitch = pitch * M_PI / 180.0f;
+
+    centerX = eyeX + cosf(radYaw) * cosf(radPitch);
+    centerY = eyeY + sinf(radPitch);
+    centerZ = eyeZ + sinf(radYaw) * cosf(radPitch);
+}
+
+void RenderScene()
+{
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    gluLookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
+
+    // Teren
+    drawFlatTerrain();
+
+    // Obiekty
+    drawBuilding(10.0f, 10.0f);
+    drawTree(-10.0f, 5.0f);
+
+    // Traktor
+    glEnable(GL_TEXTURE_2D);
+    drawTractor();
+    glDisable(GL_TEXTURE_2D);
+}
+
+void updateTractorPosition(char key)
+{
+    float angleRad = tractorAngle * M_PI / 180.0f;
+    switch (key)
     {
-
-
     case 'T': // Forward
-    {
-        float angleRad = tractorAngle * M_PI / 180.0f;
         tractorX += cosf(angleRad) * tractorSpeed;
         tractorZ += sinf(angleRad) * tractorSpeed;
-    }
-    break;
+        break;
     case 'G': // Backward
-    {
-        float angleRad = tractorAngle * M_PI / 180.0f;
         tractorX -= cosf(angleRad) * tractorSpeed;
         tractorZ -= sinf(angleRad) * tractorSpeed;
-    }
-    break;
+        break;
     case 'F': // Rotate Left
         tractorAngle += tractorRotSpeed;
         break;
     case 'H': // Rotate Right
         tractorAngle -= tractorRotSpeed;
         break;
-
-    case VK_LEFT:
-        yaw -= sensitivity;
-        break;
-    case VK_RIGHT:
-        yaw += sensitivity;
-        break;
-    case VK_UP:
-        pitch += sensitivity;
-        if (pitch > 89.0f) pitch = 89.0f;
-        break;
-    case VK_DOWN:
-        pitch -= sensitivity;
-        if (pitch < -89.0f) pitch = -89.0f;
-        break;
-    }
-    updateCameraDirection();
-
-
-
-
-
-    InvalidateRect(hWnd, NULL, FALSE);
-    break;
-
-
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
-
-
-        return 0L;
     }
 }
-
-void updateCameraDirection()
-{
-    float frontX = cosf(yaw * M_PI / 180.0f) * cosf(pitch * M_PI / 180.0f);
-    float frontY = sinf(pitch * M_PI / 180.0f);
-    float frontZ = sinf(yaw * M_PI / 180.0f) * cosf(pitch * M_PI / 180.0f);
-
-    centerX = eyeX + frontX;
-    centerY = eyeY + frontY;
-    centerZ = eyeZ + frontZ;
-}
-
-
 
 void SetupRC()
 {
@@ -468,15 +403,12 @@ void RenderScene()
 void ChangeSize(GLsizei w, GLsizei h)
 {
     if (h == 0) h = 1;
-    lastWidth = w;
-    lastHeight = h;
-    GLfloat fAspect = (GLfloat)w / (GLfloat)h;
+    GLfloat aspect = (GLfloat)w / (GLfloat)h;
     glViewport(0, 0, w, h);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(60.0f, fAspect, 1.0f, 400.0f);
+    gluPerspective(60.0f, aspect, 1.0f, 400.0f);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 }
-
 
