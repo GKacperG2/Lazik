@@ -647,19 +647,6 @@ void RenderScene()
     // Ustawienie kamery
     gluLookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
 
-    // [1] Włącz teksturowanie
-    glEnable(GL_TEXTURE_2D);
-
-    // [2] Narysuj traktor, który SAM wybierze
-    //     kiedy użyć texture[0], a kiedy texture[1].
-    //     (Patrz zmodyfikowana funkcja drawTractor() niżej)
-    glBindTexture(GL_TEXTURE_2D, texture[0]);
-    glColor3f(1.0f, 1.0f, 1.0f);
-    drawTractor();
-
-    // [3] Wyłącz teksturowanie i narysuj resztę
-    glDisable(GL_TEXTURE_2D);
-
     // Teren
     glColor3f(0.2f, 0.8f, 0.2f);
     drawFlatTerrain();
@@ -672,5 +659,21 @@ void RenderScene()
     glColor3f(0.5f, 0.3f, 0.1f);
     drawTree(-10.0f, 5.0f);
 
+    // [1] Włącz teksturowanie
+    glEnable(GL_TEXTURE_2D);
+
+    // [2] Narysuj traktor, który SAM wybierze
+    //     kiedy użyć texture[0], a kiedy texture[1].
+    //     (Patrz zmodyfikowana funkcja drawTractor() niżej)
+    glTranslatef(tractorX, 1.0f, tractorZ);
+
+    // Obrót wokół osi Y (skala w stopniach)
+    glRotatef(tractorAngle, 0.0f, 1.0f, 0.0f);
+    glBindTexture(GL_TEXTURE_2D, texture[0]);
+    glColor3f(1.0f, 1.0f, 1.0f);
+    drawTractor();
+
+    // [3] Wyłącz teksturowanie i narysuj resztę
+    glDisable(GL_TEXTURE_2D);
     // itd.
 }
