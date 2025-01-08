@@ -362,11 +362,5 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /szescian
-
-
-
 /szescian
 szescian/szescian.vcxproj
-
-
-!*.bmp
