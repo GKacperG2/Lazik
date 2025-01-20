@@ -5,13 +5,34 @@
 #  pragma comment(lib, "opengl32.lib")
 #  pragma comment(lib, "glu32.lib")
 #endif
-
+#include <AntTweakBar.h>
 #include <windows.h>
 #include <gl/gl.h>
 #include <gl/glu.h>
 #include <math.h>
 #include <stdio.h>
-#include "resource.h"  // tu są IDR_MENU, itp.
+#include <stdlib.h>     // Do rand(), srand()
+#include <time.h>       // Do time(NULL)
+#include "resource.h"   // tu są IDR_MENU, itp.
+
+// -------------------------------------------------------------
+// Fabuła (w skrócie):
+// Gra przenosi nas na rozległe gospodarstwo, gdzie kierujemy
+// traktorem. W losowych miejscach na terenie pojawiają się
+// skrzynki/bloki (np. "ładunki do zebrania"). Zadaniem gracza jest
+// objechanie pola i zebranie wszystkich bloczków poprzez przejechanie
+// traktorem w ich pobliżu. Każdy zebrany bloczek znika z planszy
+// i zwiększa liczbę punktów. Celem jest zebranie jak największej
+// liczby bloczków.
+//
+// Sterowanie:
+// - Kamera: W, S, A, D (ruch przód, tył, lewo, prawo), Q/E (góra/dół)
+// - Obrót kamery: strzałki (← → → yaw, ↑ ↓ → pitch)
+// - Ruch traktora: T (przód), G (tył), F (skręt w lewo), H (skręt w prawo)
+//
+// Miłej zabawy!
+//
+// -------------------------------------------------------------
 
 // Pomocnicza definicja koloru w trybie RGB (niekoniecznie potrzebna)
 #define glRGB(x, y, z)	glColor3ub((GLubyte)x, (GLubyte)y, (GLubyte)z)
@@ -40,9 +61,16 @@ static float tractorRotSpeed = 2.0f; // Prędkość obrotu w lewo/prawo
 static GLsizei lastHeight;
 static GLsizei lastWidth;
 
+// --- Tekstury i BMP ---
 BITMAPINFOHEADER bitmapInfoHeader;
 unsigned char* bitmapData = NULL;
-unsigned int     texture[2];
+unsigned int  texture[2];
+
+// --- Bloczki do zbierania (pozycje + zebrane/niezebrane) ---
+#define NUM_BLOCKS 50  // liczba losowych bloczków
+static float blockPositions[NUM_BLOCKS][2];  // X, Z dla każdego bloczka
+static int   blockCollected[NUM_BLOCKS];     // 0 - nie, 1 - tak
+static int   score = 0;                     // liczba zebranych bloczków
 
 // --- Deklaracje funkcji ---
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -57,10 +85,16 @@ void updateCameraDirection();
 void ChangeSize(GLsizei w, GLsizei h);
 void SetupRC();
 void RenderScene();
+
+// Rysowanie obiektów
 void drawBuilding(float posX, float posZ);
 void drawFlatTerrain();
 void drawTree(float posX, float posZ);
-void drawTractor(); // zewnętrzna funkcja (z pliku „TraktorTekstury.c”), dołączona do projektu
+void drawBlocks();          // NOWA funkcja do rysowania bloczków
+void checkBlockCollisions(); // NOWA funkcja do sprawdzania kolizji z bloczkami
+
+// Zewnętrzna funkcja rysująca traktor (z pliku „TraktorTekstury.c”)
+void drawTractor();
 
 // ---------------------------------------------------------
 // FUNKCJA wczytująca plik BMP (BGR → RGB) do pamięci
@@ -187,6 +221,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
         SetupRC();
 
+        // Inicjalizacja generatora liczb losowych (dla bloczków)
+        srand((unsigned)time(NULL));
+
         // Generujemy ID tekstur
         glGenTextures(2, texture);
 
@@ -202,7 +239,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
-            // Sposób zawijania – może być CLAMP, REPEAT, CLAMP_TO_EDGE (zależnie od dostępności)
+            // Sposób zawijania
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
@@ -212,11 +249,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 bitmapInfoHeader.biHeight,
                 0, GL_RGB, GL_UNSIGNED_BYTE, bitmapData);
 
-            // Zwolnij pamięć
             free(bitmapData);
             bitmapData = NULL;
 
-            // Ustaw tryb nakładania na DECAL (pokaże teksturę bez przyciemniania kolorem)
+            // Ustaw tryb nakładania na DECAL
             glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
         }
 
@@ -232,7 +268,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
-            // Sposób zawijania – może być CLAMP, REPEAT, CLAMP_TO_EDGE (zależnie od dostępności)
+            // Sposób zawijania
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
@@ -242,16 +278,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 bitmapInfoHeader.biHeight,
                 0, GL_RGB, GL_UNSIGNED_BYTE, bitmapData);
 
-            // Zwolnij pamięć
             free(bitmapData);
             bitmapData = NULL;
 
-            // Ustaw tryb nakładania na DECAL (pokaże teksturę bez przyciemniania kolorem)
+            // Ustaw tryb nakładania na DECAL
             glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
         }
 
         // Ustawiamy tryb mieszania koloru z teksturą
         glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+        // Losowe położenia bloczków
+        srand((unsigned)time(NULL));
+        for (int i = 0; i < NUM_BLOCKS; i++)
+        {
+            blockPositions[i][0] = (float)(rand() % 180 - 90);  // X z przedziału -90..+89
+            blockPositions[i][1] = (float)(rand() % 180 - 90);  // Z z przedziału -90..+89
+            blockCollected[i] = 0;
+        }
+
 
         return 0;
     }
@@ -300,7 +345,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         float rightX = cosf((yaw - 90.0f) * (float)M_PI / 180.0f);
         float rightZ = sinf((yaw - 90.0f) * (float)M_PI / 180.0f);
 
-        switch (wParam) {
+        switch (wParam)
+        {
             // Kamera
         case 'W':
             eyeX += frontX * speed;
@@ -340,11 +386,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             pitch -= sensitivity;
             if (pitch < -89.0f) pitch = -89.0f;
             break;
+
+            // Traktor
         case 'T': // Do przodu
         {
             float angleRad = (tractorAngle + 90.0f) * (float)M_PI / 180.0f;
             tractorX += sinf(angleRad) * tractorSpeed;
             tractorZ += cosf(angleRad) * tractorSpeed;
+            checkBlockCollisions(); // sprawdź czy zebraliśmy jakiś bloczek
         }
         break;
 
@@ -353,16 +402,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             float angleRad = (tractorAngle + 90.0f) * (float)M_PI / 180.0f;
             tractorX -= sinf(angleRad) * tractorSpeed;
             tractorZ -= cosf(angleRad) * tractorSpeed;
+            checkBlockCollisions(); // sprawdź czy zebraliśmy jakiś bloczek
         }
         break;
         case 'F': // Obrót w lewo
             tractorAngle += tractorRotSpeed;
-            InvalidateRect(hWnd, NULL, FALSE);
+            checkBlockCollisions();
             break;
 
         case 'H': // Obrót w prawo
             tractorAngle -= tractorRotSpeed;
-            InvalidateRect(hWnd, NULL, FALSE);
+            checkBlockCollisions();
             break;
         }
 
@@ -539,9 +589,7 @@ void SetupRC()
 // ---------------------------------------------------------
 void drawFlatTerrain()
 {
-    // Jeśli chcesz, aby teren też był teksturowany,
-    // to musisz tu dać glBindTexture() + glTexCoord2f().
-    // Póki co "kolor zielony" i bez tekstury:
+    // Prosty kwadratowy teren (zielony)
     glColor3f(0.2f, 0.8f, 0.2f);
     glBegin(GL_QUADS);
     glVertex3f(-100.0f, 0.0f, -100.0f);
@@ -556,7 +604,7 @@ void drawFlatTerrain()
 // ---------------------------------------------------------
 void drawBuilding(float posX, float posZ)
 {
-    float h = 0.0f; // teren jest płaski
+    float h = 0.0f;  // teren jest płaski
     float size = 5.0f;
 
     glPushMatrix();
@@ -636,44 +684,187 @@ void drawTree(float posX, float posZ)
 }
 
 // ---------------------------------------------------------
+// Rysowanie bloczków do zbierania
+// ---------------------------------------------------------
+void drawBlocks()
+{
+    // Prosta forma bloczków: małe sześciany
+    float halfSize = 1.0f;
+
+    for (int i = 0; i < NUM_BLOCKS; i++)
+    {
+        if (blockCollected[i] == 1)
+            continue;  // pomijamy już zebrane bloczki
+
+        float bx = blockPositions[i][0];
+        float bz = blockPositions[i][1];
+
+        glPushMatrix();
+        glTranslatef(bx, 0.0f, bz);
+        glColor3f(1.0f, 0.5f, 0.0f); // pomarańcz
+
+        glBegin(GL_QUADS);
+        // Góra
+        glVertex3f(-halfSize, halfSize, -halfSize);
+        glVertex3f(halfSize, halfSize, -halfSize);
+        glVertex3f(halfSize, halfSize, halfSize);
+        glVertex3f(-halfSize, halfSize, halfSize);
+
+        // Dół
+        glVertex3f(-halfSize, 0.0f, -halfSize);
+        glVertex3f(halfSize, 0.0f, -halfSize);
+        glVertex3f(halfSize, 0.0f, halfSize);
+        glVertex3f(-halfSize, 0.0f, halfSize);
+
+        // Przód
+        glVertex3f(-halfSize, 0.0f, halfSize);
+        glVertex3f(halfSize, 0.0f, halfSize);
+        glVertex3f(halfSize, halfSize, halfSize);
+        glVertex3f(-halfSize, halfSize, halfSize);
+
+        // Tył
+        glVertex3f(-halfSize, 0.0f, -halfSize);
+        glVertex3f(-halfSize, halfSize, -halfSize);
+        glVertex3f(halfSize, halfSize, -halfSize);
+        glVertex3f(halfSize, 0.0f, -halfSize);
+
+        // Lewo
+        glVertex3f(-halfSize, 0.0f, -halfSize);
+        glVertex3f(-halfSize, 0.0f, halfSize);
+        glVertex3f(-halfSize, halfSize, halfSize);
+        glVertex3f(-halfSize, halfSize, -halfSize);
+
+        // Prawo
+        glVertex3f(halfSize, 0.0f, -halfSize);
+        glVertex3f(halfSize, 0.0f, halfSize);
+        glVertex3f(halfSize, halfSize, halfSize);
+        glVertex3f(halfSize, halfSize, -halfSize);
+        glEnd();
+
+        glPopMatrix();
+    }
+}
+
+// ---------------------------------------------------------
+// Sprawdzenie, czy traktor zebrał bloczek
+// ---------------------------------------------------------
+void checkBlockCollisions()
+{
+    // Prostą metodą jest sprawdzenie odległości (2D) pomiędzy
+    // środkiem traktora (tractorX, tractorZ) a pozycją bloczka.
+    // Jeśli jest < pewnego promienia, to uznajemy bloczek za zebrany.
+    float collisionRadius = 6.0f;
+
+    for (int i = 0; i < NUM_BLOCKS; i++)
+    {
+        if (blockCollected[i] == 1) continue;
+
+        float dx = tractorX - blockPositions[i][0];
+        float dz = tractorZ - blockPositions[i][1];
+        float dist = sqrtf(dx * dx + dz * dz);
+
+        if (dist < collisionRadius)
+        {
+            // Zebraliśmy bloczek
+            blockCollected[i] = 1;
+            score++;
+            // (Można tu np. dodać dźwięk, wyświetlenie napisu, itp.)
+        }
+    }
+}
+
+// ---------------------------------------------------------
 // Render całej sceny
 // ---------------------------------------------------------
 void RenderScene()
 {
+    // 1) Wyczyszczenie buforów
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // 2) Ustaw tryb macierzy MODELVIEW i zresetuj macierz
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    // Ustawienie kamery
-    gluLookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
+    // 3) Ustawienie kamery
+    gluLookAt(eyeX, eyeY, eyeZ,
+        centerX, centerY, centerZ,
+        upX, upY, upZ);
 
-    // Teren
-    glColor3f(0.2f, 0.8f, 0.2f);
+    // 4) Rysowanie sceny 3D
+
+    // a) Teren
     drawFlatTerrain();
 
-    // Budynek
-    glColor3f(0.7f, 0.7f, 0.7f);
+    // b) Przykładowe obiekty (budynek i drzewo)
     drawBuilding(10.0f, 10.0f);
-
-    // Drzewo
-    glColor3f(0.5f, 0.3f, 0.1f);
     drawTree(-10.0f, 5.0f);
 
-    // [1] Włącz teksturowanie
+    // c) Rysowanie bloczków (do zebrania)
+    drawBlocks();
+
+    // d) Włącz teksturowanie i narysuj traktor
     glEnable(GL_TEXTURE_2D);
 
-    // [2] Narysuj traktor, który SAM wybierze
-    //     kiedy użyć texture[0], a kiedy texture[1].
-    //     (Patrz zmodyfikowana funkcja drawTractor() niżej)
-    glTranslatef(tractorX, 1.0f, tractorZ);
+    glPushMatrix();
+    {
+        glTranslatef(tractorX, 1.0f, tractorZ);
+        glRotatef(tractorAngle, 0.0f, 1.0f, 0.0f);
 
-    // Obrót wokół osi Y (skala w stopniach)
-    glRotatef(tractorAngle, 0.0f, 1.0f, 0.0f);
-    glBindTexture(GL_TEXTURE_2D, texture[0]);
-    glColor3f(1.0f, 1.0f, 1.0f);
-    drawTractor();
+        // Ustaw aktualną teksturę (np. kabina/maska)
+        glBindTexture(GL_TEXTURE_2D, texture[0]);
+        glColor3f(1.0f, 1.0f, 1.0f);
 
-    // [3] Wyłącz teksturowanie i narysuj resztę
+        // Rysowanie traktora
+        drawTractor();
+    }
+    glPopMatrix();
+
+    // e) Sprawdzenie kolizji (czy traktor zebrał któryś bloczek)
+    checkBlockCollisions();
+
+    // f) Wyłącz teksturowanie (jeśli chcesz rysować obiekty bez tekstur dalej)
     glDisable(GL_TEXTURE_2D);
-    // itd.
+
+    // 5) Rysowanie nakładki 2D (HUD, tekst itp.) w trybie ortho
+    //    Zapamiętujemy bieżący tryb projekcji i macierzy, żeby potem przywrócić.
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    {
+        // Ustaw rzut ortograficzny na rozmiar okna
+        glLoadIdentity();
+        gluOrtho2D(0, lastWidth, 0, lastHeight);
+
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        {
+            glLoadIdentity();
+
+            // PRZYKŁAD 1: (Pseudo-kod z GLUT, jeśli mamy glut)
+            /*
+            glColor3f(0, 0, 0);
+            glRasterPos2i(10, lastHeight - 20);
+            char buf[64];
+            sprintf(buf, "Zebrane bloczki: %d / %d", score, NUM_BLOCKS);
+            for (char *c = buf; *c; c++)
+                glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, *c);
+            */
+
+            // PRZYKŁAD 2: (Windows GDI - może migotać w double-buffer)
+            HDC hDC = wglGetCurrentDC();
+            SetBkMode(hDC, TRANSPARENT);
+            SetTextColor(hDC, RGB(0, 0, 0));
+            char text[64];
+            sprintf(text, "Zebrane bloczki: %d / %d", score, NUM_BLOCKS);
+            TextOutA(hDC, 10, 10, text, strlen(text));
+        }
+        // Przywracamy macierz MODELVIEW
+        glPopMatrix();
+    }
+    // Przywracamy macierz PROJECTION
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    // Na koniec wracamy do trybu MODELVIEW (dobry nawyk)
+    glMatrixMode(GL_MODELVIEW);
 }
