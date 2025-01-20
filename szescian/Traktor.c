@@ -440,6 +440,8 @@ void drawTractor()
     glPushMatrix();
     glScalef(0.1f, 0.1f, 0.1f);
 
+    glTranslatef(-42.5f, 1.0f, -29.0f);
+
     //-----------------------------------------
     // 1) Kabina i maska => tekstura[0]
     //-----------------------------------------
